@@ -2,7 +2,6 @@ const express = require('express');
 const app = express();
 const fetch = require('node-fetch');
 const path = require('path');
-const path = require('path');
 const PORT = process.env.PORT || 8081;
 
 // Global Middleware
