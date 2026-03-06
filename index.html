@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Eating Detection Snapshot Mode</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.4.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose"></script>
+
+<style>
+    body { font-family: Arial; text-align: center; background: #f4f4f4; }
+    #video { border:3px solid black; border-radius:10px; }
+    #statusBox { margin-top:20px; padding:15px; font-size:24px; font-weight:bold; border-radius:10px; }
+    .eating { background: lightgreen; }
+    .not-eating { background:#ffb3b3; }
+</style>
+</head>
+
+<body>
+
+<h2>Eating Detection</h2>
+
+<!-- Camera Snapshot -->
+<img id="video" width="350" height="300">
+
+<!-- Hidden canvas -->
+<canvas id="canvas" width="350" height="300" style="display:none;"></canvas>
+
+<div id="statusBox">Loading...</div>
+
+<div style="margin-top:10px;">
+  <label style="font-size:20px;">
+    <input type="checkbox" id="eatCheckbox" disabled style="transform:scale(1.4); margin-right:10px;">
+    Eating detected
+  </label>
+</div>
+
+<audio id="alertSound">
+  <source src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" type="audio/ogg">
+</audio>
+
+<script>
+
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const statusBox = document.getElementById("statusBox");
+const eatCheckbox = document.getElementById("eatCheckbox");
+const alertSound = document.getElementById("alertSound");
+
+// Your IPv6 camera snapshot feed
+function refreshImage(){
+    video.src = "http://[2409:40f4:315a:a51d:a0cf:58ff:fe2a:8fa2]:8080/shot.jpg?rnd=" + Math.random();
+}
+setInterval(refreshImage, 400);   // slower = more stable
+
+// Load handpose model
+async function startModel(){
+    const model = await handpose.load();
+    statusBox.innerText = "Model Loaded";
+
+    setInterval(async ()=>{
+
+        // ensure image is fully loaded
+        if (!video.complete || video.naturalWidth === 0) return;
+
+        // Draw the snapshot onto the canvas
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        // Detect using canvas
+        const predictions = await model.estimateHands(canvas);
+
+        let statusText = "";
+
+        if (predictions.length > 0) {
+
+            const hand = predictions[0];
+            const tip = hand.landmarks[8];  // index fingertip (y)
+
+            const mouthY = canvas.height * 0.45;
+
+            // Expanded detection zone for snapshot feed
+            if (tip[1] > mouthY - 60 && tip[1] < mouthY + 60) {
+
+                statusText = "EATING";
+                statusBox.className = "eating";
+
+                eatCheckbox.checked = true;   // tick the box
+                alertSound.play();
+
+            } else {
+
+                statusText = "NOT EATING";
+                statusBox.className = "not-eating";
+                eatCheckbox.checked = false;
+
+            }
+
+        } else {
+
+            statusText = "No Hand Detected";
+            statusBox.className = "";
+            eatCheckbox.checked = false;
+
+        }
+
+        statusBox.innerText = statusText;
+
+    }, 600);   // slower interval improves detection
+}
+
+startModel();
+</script>
+
+</body>
+</html>

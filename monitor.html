@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patient Monitor | Post Medical Services</title>
+
+    <!-- Dependencies -->
+    <!-- Dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.8.6/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose@0.0.6/dist/handpose.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.5/dist/blazeface.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="monitor.css">
+</head>
+
+<body>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="brand">
+            <i class="fa-solid fa-heart-pulse"></i> MedGuard
+        </div>
+        <ul class="nav-links">
+            <li class="nav-item">
+                <a href="#" class="nav-link active">
+                    <i class="fa-solid fa-chart-line"></i> Dashboard
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link">
+                    <i class="fa-solid fa-user-injured"></i> Patients
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link">
+                    <i class="fa-solid fa-clock-rotate-left"></i> History
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" id="navSettings">
+                    <i class="fa-solid fa-gear"></i> Settings
+                </a>
+            </li>
+        </ul>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+        <!-- Header -->
+        <header class="header">
+            <div class="patient-info">
+                <h2>Patient: xyz</h2>
+                <p>ID: #MG-2024-892 | Room: 304-A</p>
+            </div>
+            <div class="status-badge">
+                <i class="fa-solid fa-circle-check"></i> System Active
+            </div>
+        </header>
+
+        <!-- Dashboard Grid -->
+        <div class="dashboard-grid">
+
+            <!-- Visitor Statistics (Replaces Vitals) -->
+            <div class="card visitor-card">
+                <div class="card-header">
+                    <h3 class="card-title">Visitor Statistics</h3>
+                    <i class="fa-solid fa-users" style="color: var(--accent-blue);"></i>
+                </div>
+                <div class="visitor-stats">
+                    <div class="stat-item">
+                        <div class="stat-value" id="totalVisitors">0</div>
+                        <div class="stat-label">Total Today</div>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="currentVisitors">0</div>
+                        <div class="stat-label">Current</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Analysis -->
+            <div class="card" style="grid-row: span 1;">
+                <div class="card-header">
+                    <h3 class="card-title">Activity Analysis</h3>
+                </div>
+                <div style="margin-bottom: 1rem;">
+                    <canvas id="activityChart" height="150"></canvas>
+                </div>
+            </div>
+
+            <!-- Medicine Tracker -->
+            <div class="card" style="grid-row: span 2;">
+                <div class="card-header">
+                    <h3 class="card-title">Medicine Tracker</h3>
+                    <button id="btnEmailMeds" class="text-btn" title="Email Report">
+                        <i class="fa-solid fa-envelope"></i> Email
+                    </button>
+                </div>
+                <div class="medicine-input-group">
+                    <input type="text" id="medName" placeholder="Medicine Name" class="form-input">
+                    <input type="time" id="medTime" class="form-input">
+                    <button id="btnAddMed" class="icon-btn" style="background:var(--accent-blue); color:white;">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                </div>
+                <div class="medicine-list" id="medicineList">
+                    <!-- Medicines will be added here -->
+                </div>
+            </div>
+
+            <!-- Camera Feed Section -->
+            <div class="card" style="grid-column: span 2; grid-row: span 2;">
+                <div class="card-header">
+                    <h3 class="card-title">Live Monitoring Feed</h3>
+                    <div class="camera-controls">
+                        <select id="camSourceSelect" class="form-input"
+                            style="padding: 0.2rem; height: auto; margin-right: 0.5rem;">
+                            <option value="webcam">Webcam</option>
+                            <option value="ip">IP Camera</option>
+                        </select>
+                        <button id="btnCamSettings" class="icon-btn" title="Camera Settings">
+                            <i class="fa-solid fa-gear"></i>
+                        </button>
+                        <button id="btnSnapshot" class="icon-btn" title="Take Snapshot">
+                            <i class="fa-solid fa-camera"></i>
+                        </button>
+                        <button id="btnFullscreen" class="icon-btn" title="Fullscreen">
+                            <i class="fa-solid fa-expand"></i>
+                        </button>
+                    </div>
+                </div>
+                <!-- Camera URL Input (Hidden by default) -->
+                <div id="camSettingsPanel" style="display:none; padding: 0 1.5rem 1rem; gap: 0.5rem;">
+                    <input type="text" id="camUrlInput" class="form-input" style="width:100%;"
+                        placeholder="Enter IP Camera URL (e.g., http://192.168.1.100:8080/video)">
+                    <button id="btnSaveCamUrl" class="text-btn" style="white-space: nowrap;">Update</button>
+                </div>
+                <div class="camera-container" id="cameraContainer">
+                    <video id="webcamVideo" autoplay playsinline muted
+                        style="display:none; width:100%; height:100%; object-fit: cover; transform: scaleX(-1);"></video>
+                    <img id="ipCameraImage" style="display:none; width:100%; height:100%; object-fit: cover;"
+                        alt="IP Camera Feed" crossorigin="anonymous">
+                    <canvas id="canvas"></canvas>
+                    <div class="camera-overlay">
+                        <div class="recording-dot"></div>
+                        <span>LIVE</span>
+                    </div>
+                    <div id="loadingMsg"
+                        style="position:absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color:white; background: rgba(0,0,0,0.7); padding: 1rem; border-radius: 8px; z-index: 20; text-align: center;">
+                        Initializing AI System...<br><small>Please allow camera access</small></div>
+                    <noscript>
+                        <div
+                            style="position:absolute; top:0; left:0; width:100%; height:100%; background:black; color:red; display:flex; align-items:center; justify-content:center; z-index:100;">
+                            Javascript is required for this application.
+                        </div>
+                    </noscript>
+                    <div id="faceStatus"
+                        style="position:absolute; top:10px; left:10px; color:white; background:rgba(0,0,0,0.5); padding:5px; border-radius:4px; display:none;">
+                        <i class="fa-solid fa-user"></i> <span id="faceStatusText">Detecting...</span>
+                    </div>
+                </div>Working...
+
+            </div>
+
+            <!-- Logs -->
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title">Recent Events</h4>
+                    <button id="btnExport" class="text-btn" title="Export Logs">
+                        <i class="fa-solid fa-download"></i> Export
+                    </button>
+                </div>
+                <div class="event-log" id="eventLog">
+                    <div class="event-item">
+                        <span class="event-time">--:--</span>
+                        <span class="event-type normal">System Started</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="settingsModal" class="modal" style="display:none;">
+            <div class="modal-content" style="text-align: left; max-width: 500px;">
+                <span id="closeSettingsModal" class="close">&times;</span>
+                <h2 style="margin-top:0; color:var(--text-primary);">System Settings</h2>
+
+                <div class="settings-section">
+                    <h3
+                        style="font-size:1rem; color:var(--accent-blue); border-bottom:1px solid var(--border-color); padding-bottom:0.5rem;">
+                        Email Configuration (EmailJS)</h3>
+                    <div class="form-group" style="margin-top:1rem;">
+                        <label style="display:block; margin-bottom:0.5rem; color:var(--text-secondary);">Service
+                            ID</label>
+                        <input type="text" id="emailServiceId" class="form-input" style="width:100%;">
+                    </div>
+                    <div class="form-group" style="margin-top:1rem;">
+                        <label style="display:block; margin-bottom:0.5rem; color:var(--text-secondary);">Template
+                            ID</label>
+                        <input type="text" id="emailTemplateId" class="form-input" style="width:100%;">
+                    </div>
+                    <div class="form-group" style="margin-top:1rem;">
+                        <label style="display:block; margin-bottom:0.5rem; color:var(--text-secondary);">Public
+                            Key</label>
+                        <input type="text" id="emailPublicKey" class="form-input" style="width:100%;">
+                    </div>
+                </div>
+
+                <div class="settings-section" style="margin-top:2rem;">
+                    <h3
+                        style="font-size:1rem; color:var(--accent-blue); border-bottom:1px solid var(--border-color); padding-bottom:0.5rem;">
+                        Telegram Configuration</h3>
+                    <div class="form-group" style="margin-top:1rem;">
+                        <label style="display:block; margin-bottom:0.5rem; color:var(--text-secondary);">Bot
+                            Token</label>
+                        <input type="text" id="telegramToken" class="form-input" style="width:100%;"
+                            placeholder="e.g. 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11">
+                    </div>
+                    <div class="form-group" style="margin-top:1rem;">
+                        <label style="display:block; margin-bottom:0.5rem; color:var(--text-secondary);">Chat ID</label>
+                        <input type="text" id="telegramChatId" class="form-input" style="width:100%;"
+                            placeholder="e.g. -123456789">
+                    </div>
+                    <div class="form-group" style="margin-top:1rem;">
+                        <label style="display:block; margin-bottom:0.5rem; color:var(--text-secondary);">API Base URL
+                            (Optional)</label>
+                        <input type="text" id="telegramProxyUrl" class="form-input" style="width:100%;"
+                            placeholder="e.g. https://tele-proxy.example.com">
+                        <small style="color:var(--text-secondary); display:block; margin-top:0.3rem;">If your ISP blocks
+                            Telegram, enter a public proxy URL here.</small>
+                    </div>
+                </div>
+
+                <div style="margin-top:2rem; display:flex; justify-content:flex-end; gap:1rem;">
+                    <button id="btnSaveSettings" class="icon-btn"
+                        style="width:auto; padding:0.5rem 1.5rem; background:var(--accent-blue); color:white;">Save
+                        Settings</button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Emergency Overlay -->
+    <div id="emergencyOverlay" class="emergency-overlay" style="display:none;">
+        <i class="fa-solid fa-triangle-exclamation emergency-icon"></i>
+        <div class="emergency-text">EMERGENCY</div>
+        <div style="color:white; font-size:1.5rem; margin-top:1rem;">Help Required Immediately</div>
+    </div>
+
+    <!-- Audio Alert -->
+    <audio id="alertSound">
+        <source src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" type="audio/ogg">
+    </audio>
+
+    <!-- EmailJS SDK (latest) -->
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <script>
+        emailjs.init({
+            publicKey: 'qhsxUESmK8n4qP5XI'
+        });
+    </script>
+    <script src="monitor.js"></script>
+    <script src="monitor_meds.js"></script>
+    <script src="monitor_export.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "medguard-ai-camera",
+  "version": "1.0.0",
+  "description": "AI Patient Monitoring System",
+  "main": "proxy.js",
+  "scripts": {
+    "start": "node proxy.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "node-fetch": "^2.7.0",
+    "request": "^2.88.2"
+  }
+}
