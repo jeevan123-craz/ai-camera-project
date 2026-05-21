@@ -1,21 +1,14 @@
 // EmailJS integration for exporting medicine schedule
+// BUG FIX #3: EmailJS is initialized ONLY in monitor.js (settings save).
+// This file only hooks up the button — no extra emailjs.init() call.
 
-// Load EmailJS SDK and initialize after it's loaded
-var script = document.createElement('script');
-script.src = "https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js";
-script.onload = function() {
-    // Initialize EmailJS with your public key
-    emailjs.init({
-        publicKey: localStorage.getItem('emailPublicKey') || 'YOUR_PUBLIC_KEY'
-    });
-
-    // Hook up the button after SDK is loaded
+// BUG FIX #2: Only ONE click listener on btnEmailMeds (this file owns it).
+document.addEventListener('DOMContentLoaded', () => {
     const btnEmailMeds = document.getElementById('btnEmailMeds');
     if (btnEmailMeds) {
         btnEmailMeds.addEventListener("click", exportMedicinesViaEmailJS);
     }
-};
-document.head.appendChild(script);
+});
 
 function exportMedicinesViaEmailJS() {
     const meds = window.medicines || [];
@@ -31,18 +24,19 @@ function exportMedicinesViaEmailJS() {
     });
     medTable += '</table>';
 
-    // Log to check if table is empty
     console.log("Medicine Table Sent:", medTable);
 
-    // Prepare EmailJS params
     const serviceId = localStorage.getItem('emailServiceId') || 'YOUR_SERVICE_ID';
     const templateId = localStorage.getItem('emailTemplateId') || 'YOUR_TEMPLATE_ID';
 
-    const templateParams = {
-        medicines: medTable
-    };
+    if (!serviceId || serviceId === 'YOUR_SERVICE_ID' || !templateId || templateId === 'YOUR_TEMPLATE_ID') {
+        alert('Please configure EmailJS Service ID and Template ID in Settings first.');
+        return;
+    }
+
+    const templateParams = { medicines: medTable };
 
     emailjs.send(serviceId, templateId, templateParams)
-        .then(response => alert('Email sent!'))
-        .catch(error => alert('Failed to send email: ' + error.text));
+        .then(() => alert('Email sent!'))
+        .catch(error => alert('Failed to send email: ' + (error.text || error)));
 }

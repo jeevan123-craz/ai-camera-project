@@ -20,8 +20,24 @@ let emergencyAudioContext = null;
 let emergencyOscillator = null;
 let animationId = null;
 let stream = null;
-let twoHandsStartTime = null;
 let manualEmergency = false;
+
+// BUG FIX #5/#6 – hold-to-confirm + eating smoothing
+let emergencyHoldStart = null;       // timestamp when open-hand hold began
+const EMERGENCY_HOLD_MS = 2000;      // 2 seconds to confirm
+let eatingFrameCount = 0;            // consecutive eating detection frames
+const EATING_FRAMES_REQUIRED = 3;    // need 3 in a row
+
+// BUG FIX #8 – patient-absent Telegram
+let patientAbsentTelegramSent = false;
+
+// NEW FEATURE #6 – session stats
+const sessionStartTime = Date.now();
+let eatingEventsToday = parseInt(localStorage.getItem('eatingEventsToday') || '0');
+let alertCountToday = parseInt(localStorage.getItem('alertCountToday') || '0');
+
+// NEW FEATURE #9 – persistent eating chart data
+const CHART_STORAGE_KEY = 'eatingChartData';
 
 // Visitor State
 let visitorCount = 0;
@@ -90,14 +106,9 @@ async function initCamera() {
 
         } catch (err) {
             console.error("Webcam error:", err);
-            updateStatus(`Webcam Failed: ${err.message}. Switching to IP Camera.`, true);
-
-            // Wait 3 seconds before switching so user sees error
-            setTimeout(() => {
-                CONFIG.cameraSource = 'ip';
-                if (camSourceSelect) camSourceSelect.value = 'ip';
-                initCamera();
-            }, 3000);
+            // BUG FIX #10: Show a clear error, do NOT silently switch to IP mode
+            updateStatus(`❌ Webcam Access Denied: ${err.message}. Please allow camera access and refresh.`, true);
+            // Do NOT auto-switch – if no IP URL is configured it would show a broken feed
         }
     } else {
         webcamVideo.srcObject = null;
@@ -255,7 +266,11 @@ function isHandOpen(landmarks) {
 function triggerEmergency() {
     isEmergency = true;
     if (emergencyOverlay) emergencyOverlay.style.display = "flex";
-    logEvent("EMERGENCY: HELP REQUIRED", "eating"); // Using 'eating' style (red) for emergency
+    alertCountToday++;
+    localStorage.setItem('alertCountToday', alertCountToday);
+    const alertEl = document.getElementById('alertCount');
+    if (alertEl) alertEl.innerText = alertCountToday;
+    logEvent("EMERGENCY: HELP REQUIRED", "eating", true); // BUG FIX #7: send Telegram
     startSiren();
 }
 
@@ -318,8 +333,14 @@ function triggerEatingEvent() {
     isEating = true;
     lastEatingTime = now;
 
+    // FEATURE #6: update eating stat counter
+    eatingEventsToday++;
+    localStorage.setItem('eatingEventsToday', eatingEventsToday);
+    const eatEl = document.getElementById('eatingEventsCount');
+    if (eatEl) eatEl.innerText = eatingEventsToday;
+
     if (alertSound) alertSound.play().catch(e => { });
-    logEvent("Eating Detected", "normal");
+    logEvent("Eating Detected", "normal"); // no Telegram for eating (BUG FIX #7)
     updateActivityChart();
 }
 
@@ -372,7 +393,7 @@ async function sendTelegramMessage(message) {
     }
 }
 
-function logEvent(message, type = "normal") {
+function logEvent(message, type = "normal", sendTelegram = false) {
     if (!eventLog) return;
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const div = document.createElement("div");
@@ -383,9 +404,45 @@ function logEvent(message, type = "normal") {
     `;
     eventLog.prepend(div);
 
-    // Send to Telegram
-    sendTelegramMessage(message);
+    // NEW FEATURE #8: Persist last 200 events to localStorage
+    const saved = JSON.parse(localStorage.getItem('eventLog') || '[]');
+    saved.unshift({ time, message, type });
+    if (saved.length > 200) saved.length = 200;
+    localStorage.setItem('eventLog', JSON.stringify(saved));
+
+    // BUG FIX #7: Only send Telegram when explicitly requested
+    if (sendTelegram) {
+        sendTelegramMessage(message);
+    }
+
+    // Sync to Proxy for AI Assistant
+    syncStatsToProxy();
 }
+
+async function syncStatsToProxy() {
+    const stats = {
+        patientPresent: (Date.now() - lastFaceDetectedTime < 5000),
+        isEmergency,
+        isEating,
+        eatingEventsToday,
+        alertCountToday,
+        visitorCount,
+        lastEvent: JSON.parse(localStorage.getItem('eventLog') || '[]')[0] || null
+    };
+
+    try {
+        await fetch('http://localhost:8081/update-stats', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(stats)
+        });
+    } catch (e) {
+        // Silently fail if proxy isn't running
+    }
+}
+
+// Auto-sync every 10 seconds
+setInterval(syncStatsToProxy, 10000);
 
 // AI Model Initialization
 async function initModels() {
@@ -572,18 +629,37 @@ function startDetectionLoop() {
                         document.getElementById('currentVisitors').innerText = 0;
                     }
 
+                    // Reset patient-absent flag when face returns
+                    patientAbsentTelegramSent = false;
+
+                    // Face badge (Feature #12)
+                    const bFaceOn = document.getElementById('badgeFace');
+                    if (bFaceOn) { bFaceOn.style.display = 'inline'; bFaceOn.style.color = '#4ade80'; }
+
                     // Draw face box
                     faces.forEach(face => {
                         const start = face.topLeft;
                         const end = face.bottomRight;
                         const size = [end[0] - start[0], end[1] - start[1]];
-                        ctx.strokeStyle = '#38bdf8'; // Match accent blue
+                        ctx.strokeStyle = '#38bdf8';
                         ctx.lineWidth = 2;
                         ctx.strokeRect(start[0], start[1], size[0], size[1]);
                     });
                 } else {
                     window.currentFaceBox = null; // No face
                     const timeSinceLastFace = Date.now() - lastFaceDetectedTime;
+
+                    // BUG FIX #8 / FEATURE #4: send ONE Telegram after 10s absent
+                    if (timeSinceLastFace > 10000 && !patientAbsentTelegramSent) {
+                        patientAbsentTelegramSent = true;
+                        sendTelegramMessage('\u26a0\ufe0f Patient not visible for 10+ seconds.');
+                        logEvent('Patient Not Detected (10s)', 'eating');
+                        alertCountToday++;
+                        localStorage.setItem('alertCountToday', alertCountToday);
+                        const alertEl = document.getElementById('alertCount');
+                        if (alertEl) alertEl.innerText = alertCountToday;
+                    }
+
                     if (timeSinceLastFace > 5000) {
                         faceStatusText.innerText = "Patient Not Detected!";
                         faceStatusDiv.className = 'face-status-danger';
@@ -591,6 +667,10 @@ function startDetectionLoop() {
                         faceStatusText.innerText = "Detecting...";
                         faceStatusDiv.className = 'face-status-warning';
                     }
+
+                    // Update badges
+                    const bFace = document.getElementById('badgeFace');
+                    if (bFace) { bFace.style.display = 'none'; }
                 }
             } catch (e) {
                 console.warn("Face detection error:", e);
@@ -605,9 +685,20 @@ function startDetectionLoop() {
                     const hand = predictions[0];
                     drawHand(hand.landmarks);
                     processHandLogic(hand.landmarks, predictions.length);
+                    // Hand badge (Feature #12)
+                    const bH = document.getElementById('badgeHand');
+                    if (bH) { bH.style.display = 'inline'; bH.style.color = '#38bdf8'; }
                 } else {
                     if (isEmergency && !manualEmergency) stopEmergency();
                     if (isEating) isEating = false;
+                    eatingFrameCount = 0;
+                    emergencyHoldStart = null;
+                    const holdBar = document.getElementById('emergencyHoldBar');
+                    if (holdBar) holdBar.style.display = 'none';
+                    const bH = document.getElementById('badgeHand');
+                    if (bH) bH.style.display = 'none';
+                    const bE = document.getElementById('badgeEating');
+                    if (bE) bE.style.display = 'none';
                 }
             } catch (e) {
                 console.warn("Hand detection error:", e);
@@ -651,56 +742,65 @@ function startDetectionLoop() {
 }
 
 function processHandLogic(landmarks, handCount) {
-    // 1. FIVE FINGERS ALERT (Open Hand)
+    const holdBar  = document.getElementById('emergencyHoldBar');
+    const holdFill = document.getElementById('emergencyHoldFill');
+    const bEating  = document.getElementById('badgeEating');
+
+    // 1. EMERGENCY HOLD-TO-CONFIRM (BUG FIX #5, FEATURE #1)
     if (isHandOpen(landmarks)) {
-        // Draw Visual Alert on Screen
-        ctx.fillStyle = "rgba(239, 68, 68, 0.8)"; // Red
+        ctx.fillStyle = "rgba(239, 68, 68, 0.8)";
         ctx.fillRect(0, 0, canvas.width, 40);
         ctx.fillStyle = "white";
-        ctx.font = "bold 24px Arial";
-        ctx.fillText("⚠️ 5 FINGERS DETECTED - EMERGENCY", 20, 28);
+        ctx.font = "bold 22px Arial";
 
-        if (!isEmergency) triggerEmergency();
-        return; // Prioritize emergency
+        if (!emergencyHoldStart) emergencyHoldStart = Date.now();
+        const held = Date.now() - emergencyHoldStart;
+        const pct  = Math.min(100, (held / EMERGENCY_HOLD_MS) * 100);
+
+        ctx.fillText(`⚠️ Hold to confirm EMERGENCY... ${Math.ceil((EMERGENCY_HOLD_MS - held) / 1000)}s`, 20, 28);
+
+        if (holdBar)  { holdBar.style.display  = 'block'; }
+        if (holdFill) { holdFill.style.width    = pct + '%'; }
+
+        if (held >= EMERGENCY_HOLD_MS && !isEmergency) {
+            triggerEmergency();
+        }
+        // Reset eating while holding
+        eatingFrameCount = 0;
+        return;
     } else {
+        // Hand no longer open — cancel hold
+        emergencyHoldStart = null;
+        if (holdBar)  holdBar.style.display  = 'none';
+        if (holdFill) holdFill.style.width   = '0%';
         if (isEmergency && !manualEmergency) stopEmergency();
     }
 
-    // 2. EATING DETECTION logic
-    // We need the index finger tip (Landmark 8) and Thumb tip (Landmark 4) or just Index
+    // 2. EATING DETECTION with smoothing (BUG FIX #6, FEATURE #2)
     const indexTip = landmarks[8];
-
-    // Determine Mouth Position
     let mouthX, mouthY;
 
     if (window.currentFaceBox) {
-        // Dynamic: Based on detected face
-        // Mouth is roughly at center X, 75% down Y of face box
         mouthX = window.currentFaceBox.x + (window.currentFaceBox.width * 0.5);
         mouthY = window.currentFaceBox.y + (window.currentFaceBox.height * 0.75);
-
-        // Visualize Mouth Area (Debug/Feedback)
-        ctx.strokeStyle = "#4ade80"; // Green
+        ctx.strokeStyle = "#4ade80";
         ctx.beginPath();
         ctx.arc(mouthX, mouthY, 40, 0, 2 * Math.PI);
         ctx.stroke();
     } else {
-        // Fallback: Static position (center screen, slightly up)
         mouthX = canvas.width / 2;
         mouthY = canvas.height * 0.45;
     }
 
-    // Check distance between Index Finger and Mouth
-    const distToMouth = Math.sqrt(Math.pow(indexTip[0] - mouthX, 2) + Math.pow(indexTip[1] - mouthY, 2));
+    const distToMouth = Math.sqrt(
+        Math.pow(indexTip[0] - mouthX, 2) + Math.pow(indexTip[1] - mouthY, 2)
+    );
 
-    // Threshold: 60px radius
     if (distToMouth < 60) {
-        // VISUAL MARKER FOR EATING
-        ctx.fillStyle = "#4ade80"; // Green
-        ctx.font = "bold 30px Arial";
-        ctx.fillText("🥣 EATING", indexTip[0] + 20, indexTip[1]); // Label follows hand
-
-        // Draw line connecting hand to mouth
+        eatingFrameCount++;
+        ctx.fillStyle = "#4ade80";
+        ctx.font = "bold 28px Arial";
+        ctx.fillText(`🥣 EATING (${eatingFrameCount}/${EATING_FRAMES_REQUIRED})`, indexTip[0] + 20, indexTip[1]);
         ctx.beginPath();
         ctx.moveTo(indexTip[0], indexTip[1]);
         ctx.lineTo(mouthX, mouthY);
@@ -708,9 +808,16 @@ function processHandLogic(landmarks, handCount) {
         ctx.strokeStyle = "#4ade80";
         ctx.stroke();
 
-        if (!isEating) triggerEatingEvent();
+        if (bEating) { bEating.style.display = 'inline'; bEating.style.color = '#4ade80'; }
+
+        // Only trigger after EATING_FRAMES_REQUIRED consecutive frames
+        if (eatingFrameCount >= EATING_FRAMES_REQUIRED && !isEating) {
+            triggerEatingEvent();
+        }
     } else {
+        eatingFrameCount = 0;
         isEating = false;
+        if (bEating) bEating.style.display = 'none';
     }
 }
 
@@ -807,18 +914,35 @@ if (btnSaveCamUrl && camUrlInput && camSettingsPanel) {
     });
 }
 
-// Charts
+// Charts – FEATURE #9: dynamic labels from current hour going back 6h, persisted data
 const ctxActivity = document.getElementById('activityChart');
 let activityChart = null;
 
+function buildChartLabels() {
+    const now = new Date();
+    const labels = [];
+    for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getTime() - i * 60 * 60 * 1000);
+        labels.push(d.getHours().toString().padStart(2, '0') + ':00');
+    }
+    return labels;
+}
+
+function loadChartData(labels) {
+    const saved = JSON.parse(localStorage.getItem(CHART_STORAGE_KEY) || '{}');
+    return labels.map(l => saved[l] || 0);
+}
+
 if (ctxActivity) {
+    const chartLabels = buildChartLabels();
+    const chartData   = loadChartData(chartLabels);
     activityChart = new Chart(ctxActivity.getContext('2d'), {
         type: 'bar',
         data: {
-            labels: ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00'],
+            labels: chartLabels,
             datasets: [{
                 label: 'Eating Events',
-                data: [0, 1, 3, 0, 0, 0],
+                data: chartData,
                 backgroundColor: '#38bdf8',
                 borderRadius: 4
             }]
@@ -827,29 +951,29 @@ if (ctxActivity) {
             responsive: true,
             plugins: {
                 legend: { display: false },
-                title: { display: true, text: 'Eating Frequency (Today)', color: '#94a3b8' }
+                title: { display: true, text: 'Eating Frequency (Last 6h)', color: '#94a3b8' }
             },
             scales: {
-                y: {
-                    beginAtZero: true,
-                    grid: { color: '#334155' },
-                    ticks: { color: '#94a3b8', stepSize: 1 }
-                },
-                x: {
-                    grid: { display: false },
-                    ticks: { color: '#94a3b8' }
-                }
+                y: { beginAtZero: true, grid: { color: '#334155' }, ticks: { color: '#94a3b8', stepSize: 1 } },
+                x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
             }
         }
     });
 }
 
+// BUG FIX #4 / FEATURE #9: find real current hour in labels, persist
 function updateActivityChart() {
     if (!activityChart) return;
-    const currentHourIndex = 2; // Fixed for demo, ideally dynamic based on time
-    const currentVal = activityChart.data.datasets[0].data[currentHourIndex];
-    activityChart.data.datasets[0].data[currentHourIndex] = currentVal + 1;
+    const nowHour = new Date().getHours().toString().padStart(2, '0') + ':00';
+    const labels  = activityChart.data.labels;
+    const idx     = labels.indexOf(nowHour);
+    if (idx === -1) return; // current hour not in chart window
+    activityChart.data.datasets[0].data[idx]++;
     activityChart.update();
+    // Persist
+    const saved = JSON.parse(localStorage.getItem(CHART_STORAGE_KEY) || '{}');
+    saved[nowHour] = activityChart.data.datasets[0].data[idx];
+    localStorage.setItem(CHART_STORAGE_KEY, JSON.stringify(saved));
 }
 
 // Settings Modal Logic
@@ -866,6 +990,17 @@ const telegramTokenInput = document.getElementById('telegramToken');
 const telegramChatIdInput = document.getElementById('telegramChatId');
 const telegramProxyUrlInput = document.getElementById('telegramProxyUrl');
 
+// FEATURE #5: Patient info helpers
+function updateHeaderPatientInfo() {
+    const name = localStorage.getItem('patientName') || '—';
+    const id   = localStorage.getItem('patientId')   || '—';
+    const room = localStorage.getItem('patientRoom') || '—';
+    const h = document.getElementById('headerPatientName');
+    const p = document.getElementById('headerPatientMeta');
+    if (h) h.innerText = `Patient: ${name}`;
+    if (p) p.innerText = `ID: #${id} | Room: ${room}`;
+}
+
 // Load Settings
 function loadSettings() {
     emailServiceId.value = localStorage.getItem('emailServiceId') || '';
@@ -874,6 +1009,13 @@ function loadSettings() {
     if (telegramTokenInput) telegramTokenInput.value = CONFIG.telegramToken || '';
     if (telegramChatIdInput) telegramChatIdInput.value = CONFIG.telegramChatId || '';
     if (telegramProxyUrlInput) telegramProxyUrlInput.value = CONFIG.telegramProxyUrl || '';
+    // Patient info
+    const pn = document.getElementById('patientName');
+    const pi = document.getElementById('patientId');
+    const pr = document.getElementById('patientRoom');
+    if (pn) pn.value = localStorage.getItem('patientName') || '';
+    if (pi) pi.value = localStorage.getItem('patientId')   || '';
+    if (pr) pr.value = localStorage.getItem('patientRoom') || '';
 }
 
 if (navSettings) {
@@ -892,25 +1034,33 @@ if (closeSettingsModal) {
 
 if (btnSaveSettings) {
     btnSaveSettings.addEventListener('click', () => {
-        localStorage.setItem('emailServiceId', emailServiceId.value.trim());
+        // Patient info (FEATURE #5)
+        const pn = document.getElementById('patientName');
+        const pi = document.getElementById('patientId');
+        const pr = document.getElementById('patientRoom');
+        if (pn) localStorage.setItem('patientName', pn.value.trim());
+        if (pi) localStorage.setItem('patientId',   pi.value.trim());
+        if (pr) localStorage.setItem('patientRoom', pr.value.trim());
+        updateHeaderPatientInfo();
+
+        localStorage.setItem('emailServiceId',  emailServiceId.value.trim());
         localStorage.setItem('emailTemplateId', emailTemplateId.value.trim());
-        localStorage.setItem('emailPublicKey', emailPublicKey.value.trim());
+        localStorage.setItem('emailPublicKey',  emailPublicKey.value.trim());
 
         if (telegramTokenInput && telegramChatIdInput) {
-            CONFIG.telegramToken = telegramTokenInput.value.trim();
+            CONFIG.telegramToken  = telegramTokenInput.value.trim();
             CONFIG.telegramChatId = telegramChatIdInput.value.trim();
-            localStorage.setItem('telegramToken', CONFIG.telegramToken);
+            localStorage.setItem('telegramToken',  CONFIG.telegramToken);
             localStorage.setItem('telegramChatId', CONFIG.telegramChatId);
         }
-
         if (telegramProxyUrlInput) {
             CONFIG.telegramProxyUrl = telegramProxyUrlInput.value.trim();
             localStorage.setItem('telegramProxyUrl', CONFIG.telegramProxyUrl);
         }
 
-        // Re-init EmailJS if key changed
+        // BUG FIX #3: EmailJS init in ONE place — only here on settings save
         if (emailPublicKey.value.trim()) {
-            emailjs.init(emailPublicKey.value.trim());
+            emailjs.init({ publicKey: emailPublicKey.value.trim() });
         }
 
         alert('Settings Saved!');
@@ -925,11 +1075,76 @@ window.onclick = function (event) {
     }
 }
 
-// Initialize EmailJS on load if key exists
-const savedKey = localStorage.getItem('emailPublicKey');
-if (savedKey) {
-    emailjs.init(savedKey);
+// EmailJS init on load — use saved key, or fall back to the project's default key.
+const savedKey = localStorage.getItem('emailPublicKey') || 'qhsxUESmK8n4qP5XI';
+emailjs.init({ publicKey: savedKey });
+// Also persist the default so Settings modal shows it pre-filled
+if (!localStorage.getItem('emailPublicKey')) {
+    localStorage.setItem('emailPublicKey', 'qhsxUESmK8n4qP5XI');
 }
 
-// Start Initialization
+// ── STARTUP ────────────────────────────────────────────────
+
+// FEATURE #5: Load patient info into header
+updateHeaderPatientInfo();
+
+// FEATURE #8: Restore last 200 events from localStorage
+(function restoreEventLog() {
+    const saved = JSON.parse(localStorage.getItem('eventLog') || '[]');
+    if (!eventLog || saved.length === 0) return;
+    // Clear placeholder
+    eventLog.innerHTML = '';
+    saved.forEach(e => {
+        const div = document.createElement('div');
+        div.className = 'event-item';
+        div.innerHTML = `<span class="event-time">${e.time}</span><span class="event-type ${e.type}">${e.message}</span>`;
+        eventLog.appendChild(div);
+    });
+})();
+
+// FEATURE #6: Session uptime counter
+setInterval(() => {
+    const el = document.getElementById('sessionUptime');
+    if (!el) return;
+    const secs = Math.floor((Date.now() - sessionStartTime) / 1000);
+    const h = String(Math.floor(secs / 3600)).padStart(2, '0');
+    const m = String(Math.floor((secs % 3600) / 60)).padStart(2, '0');
+    const s = String(secs % 60).padStart(2, '0');
+    el.innerText = `${h}:${m}:${s}`;
+}, 1000);
+
+// FEATURE #10: Daily data reset at midnight
+setInterval(() => {
+    const now = new Date();
+    if (now.getHours() === 0 && now.getMinutes() === 0 && now.getSeconds() < 2) {
+        // Reset eating count
+        eatingEventsToday = 0;
+        localStorage.setItem('eatingEventsToday', '0');
+        const eatEl = document.getElementById('eatingEventsCount');
+        if (eatEl) eatEl.innerText = '0';
+        // Reset alert count
+        alertCountToday = 0;
+        localStorage.setItem('alertCountToday', '0');
+        const alertEl = document.getElementById('alertCount');
+        if (alertEl) alertEl.innerText = '0';
+        // Reset visitor count
+        visitorCount = 0;
+        const visEl = document.getElementById('totalVisitors');
+        if (visEl) visEl.innerText = '0';
+        // Reset chart data
+        localStorage.removeItem(CHART_STORAGE_KEY);
+        if (activityChart) {
+            const newLabels = buildChartLabels();
+            activityChart.data.labels = newLabels;
+            activityChart.data.datasets[0].data = newLabels.map(() => 0);
+            activityChart.update();
+        }
+        // Reset event log
+        localStorage.removeItem('eventLog');
+        if (eventLog) eventLog.innerHTML = '';
+        console.log('[MedGuard] Daily reset at midnight complete.');
+    }
+}, 1000);
+
+// ── INIT ───────────────────────────────────────────────────
 initModels();

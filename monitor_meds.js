@@ -1,12 +1,16 @@
 // --- Medicine Tracker Logic ---
-window.medicines = JSON.parse(localStorage.getItem('medicines')) || []; // Make it global
+// BUG FIX #9: Declare as window.medicines everywhere, never bare `medicines`
+window.medicines = JSON.parse(localStorage.getItem('medicines')) || [];
+
+// Pending alarm timers: { medId: timeoutHandle }
+const medicineMissedTimers = {};
 
 // DOM Elements
 const medNameInput = document.getElementById('medName');
 const medTimeInput = document.getElementById('medTime');
 const btnAddMed = document.getElementById('btnAddMed');
 const medicineList = document.getElementById('medicineList');
-const btnEmailMeds = document.getElementById('btnEmailMeds');
+// NOTE: btnEmailMeds listener is ONLY in monitor_export.js (BUG FIX #2)
 // alertSound is already defined in monitor.js
 
 // Add Medicine
@@ -27,7 +31,8 @@ btnAddMed.addEventListener('click', () => {
         lastTakenDate: null
     };
 
-    medicines.push(med);
+    // BUG FIX #9: Always use window.medicines
+    window.medicines.push(med);
     saveMedicines();
     renderMedicines();
     medNameInput.value = '';
@@ -39,9 +44,9 @@ function renderMedicines() {
     medicineList.innerHTML = '';
 
     // Sort by time
-    medicines.sort((a, b) => a.time.localeCompare(b.time));
+    window.medicines.sort((a, b) => a.time.localeCompare(b.time));
 
-    medicines.forEach(med => {
+    window.medicines.forEach(med => {
         const div = document.createElement('div');
         div.className = `medicine-item ${med.taken ? 'taken' : ''}`;
         div.id = `med-${med.id}`;
@@ -66,12 +71,18 @@ function renderMedicines() {
 
 // Toggle Medicine Taken Status
 window.toggleMedicine = function (id) {
-    const med = medicines.find(m => m.id === id);
+    // BUG FIX #9: Use window.medicines
+    const med = window.medicines.find(m => m.id === id);
     if (med) {
         med.taken = !med.taken;
         if (med.taken) {
             med.lastTakenDate = new Date().toISOString().split('T')[0];
             stopMedicineAlarm(med.id);
+            // Cancel the missed-medicine Telegram timer
+            if (medicineMissedTimers[med.id]) {
+                clearTimeout(medicineMissedTimers[med.id]);
+                delete medicineMissedTimers[med.id];
+            }
             logEvent(`Medicine Taken: ${med.name}`, 'normal');
         } else {
             med.lastTakenDate = null;
@@ -81,10 +92,10 @@ window.toggleMedicine = function (id) {
     }
 };
 
-// Remove Medicine
+// Remove Medicine (BUG FIX #1: use window.medicines, not local reassignment)
 window.removeMedicine = function (id) {
     if (confirm('Delete this medicine schedule?')) {
-        medicines = medicines.filter(m => m.id !== id);
+        window.medicines = window.medicines.filter(m => m.id !== id);
         saveMedicines();
         renderMedicines();
     }
@@ -92,7 +103,7 @@ window.removeMedicine = function (id) {
 
 // Save to LocalStorage
 function saveMedicines() {
-    localStorage.setItem('medicines', JSON.stringify(medicines));
+    localStorage.setItem('medicines', JSON.stringify(window.medicines));
 }
 
 // Format Time (HH:mm -> 12h format)
@@ -109,29 +120,40 @@ setInterval(() => {
     const now = new Date();
     const currentTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 
-    // Reset "taken" status at midnight
+    // Daily reset at midnight (BUG FIX for feature #10 overlap: handled here for meds)
     if (currentTime === '00:00') {
-        medicines.forEach(m => m.taken = false);
+        window.medicines.forEach(m => { m.taken = false; });
         saveMedicines();
         renderMedicines();
     }
 
-    medicines.forEach(med => {
+    // BUG FIX #9: Use window.medicines
+    window.medicines.forEach(med => {
         if (med.time === currentTime && !med.taken) {
-            triggerMedicineAlarm(med.id);
+            triggerMedicineAlarm(med.id, med.name);
         }
     });
 }, 1000);
 
-function triggerMedicineAlarm(id) {
+function triggerMedicineAlarm(id, name) {
     const el = document.getElementById(`med-${id}`);
     if (el && !el.classList.contains('alarm-active')) {
         el.classList.add('alarm-active');
-        // Play sound
         alertSound.play().catch(e => { });
-        // Browser notification
         if (Notification.permission === "granted") {
-            new Notification("Medicine Reminder", { body: "Time to take your medicine!" });
+            new Notification("Medicine Reminder", { body: `Time to take: ${name}` });
+        }
+
+        // NEW FEATURE #11: Schedule missed-medicine Telegram alert after 5 minutes
+        if (!medicineMissedTimers[id]) {
+            medicineMissedTimers[id] = setTimeout(() => {
+                const med = window.medicines.find(m => m.id === id);
+                if (med && !med.taken) {
+                    sendTelegramMessage(`💊 *${med.name}* not confirmed taken. Scheduled at ${formatTime(med.time)}.`);
+                    logEvent(`Medicine Missed: ${med.name}`, 'eating');
+                }
+                delete medicineMissedTimers[id];
+            }, 5 * 60 * 1000); // 5 minutes
         }
     }
 }
@@ -147,41 +169,6 @@ function stopMedicineAlarm(id) {
 if (Notification.permission !== "granted") {
     Notification.requestPermission();
 }
-
-// Email/Export Logic
-btnEmailMeds.addEventListener('click', () => {
-    let csvContent = "Medicine,Time,Status,Last Taken\n";
-    medicines.forEach(med => {
-        csvContent += `${med.name},${med.time},${med.taken ? 'Taken' : 'Pending'},${med.lastTakenDate || 'N/A'}\n`;
-    });
-
-    const subject = "Medicine Report - MedGuard";
-    const body = encodeURIComponent("Here is the current medicine schedule and status:\n\n" + csvContent);
-
-    // Open default mail client
-    const serviceId = localStorage.getItem('emailServiceId');
-    const templateId = localStorage.getItem('emailTemplateId');
-
-    if (!serviceId || !templateId) {
-        alert('Please configure EmailJS Service ID and Template ID in Settings first.');
-        return;
-    }
-
-    const templateParams = {
-        to_name: "Caregiver", // You might want to make this dynamic too
-        message: csvContent,
-        reply_to: "noreply@medguard.com"
-    };
-
-    emailjs.send(serviceId, templateId, templateParams)
-        .then(function (response) {
-            console.log('SUCCESS!', response.status, response.text);
-            alert('Medicine Report Sent Successfully!');
-        }, function (error) {
-            console.log('FAILED...', error);
-            alert('Failed to send email: ' + JSON.stringify(error));
-        });
-});
 
 // Initial Render
 renderMedicines();
