@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Well Motor Scheduler - Dynamic WhatsApp & Calendar Dashboard</title>
+  <!-- Google Fonts for premium typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Main Styles -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Local File Protocol Warning Guard -->
+  <div id="protocol-guard" class="login-overlay hidden">
+    <div class="cyber-bg-lines">
+      <div class="cyber-line line-left-top" style="background: linear-gradient(90deg, transparent, #ef4444, transparent); box-shadow: 0 0 15px rgba(239, 68, 68, 0.6);"></div>
+      <div class="cyber-line line-right-top" style="background: linear-gradient(90deg, transparent, #ef4444, transparent); box-shadow: 0 0 15px rgba(239, 68, 68, 0.6);"></div>
+      <div class="cyber-glow-orb orb-1" style="background: radial-gradient(circle, rgba(239, 68, 68, 0.1) 0%, transparent 70%);"></div>
+      <div class="cyber-glow-orb orb-2" style="background: radial-gradient(circle, rgba(239, 68, 68, 0.1) 0%, transparent 70%);"></div>
+      <div class="cyber-grid-mesh"></div>
+    </div>
+    
+    <div class="login-container glass-card" style="max-width: 520px; border-color: rgba(239, 68, 68, 0.4); box-shadow: inset 0 0 25px rgba(239, 68, 68, 0.05), 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 50px rgba(239, 68, 68, 0.15);">
+      <div class="login-header">
+        <div class="login-logo-wrapper">
+          <i data-lucide="alert-octagon" class="login-logo-icon" style="color: #ef4444; filter: drop-shadow(0 0 16px rgba(239, 68, 68, 0.85));"></i>
+        </div>
+        <h2 style="font-size: 1.6rem; color: #fff; letter-spacing: 0.5px; text-shadow: 0 0 10px rgba(239, 68, 68, 0.3);">LOCAL FILE LAUNCH DETECTED</h2>
+        <p style="color: #ef4444; font-weight: 600; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 1.5px; margin-top: 4px;">REST API & WhatsApp Service Offline</p>
+      </div>
+      
+      <div style="color: var(--text-main); font-size: 0.9rem; line-height: 1.6; margin: 24px 0 16px 0; text-align: center;">
+        <p style="margin-bottom: 12px;">You opened the dashboard page directly via the <code>file://</code> protocol in your browser.</p>
+        <p>Browsers block security tokens and API connection requests from local filesystem files. This blocks backend connection attempts, producing the <strong style="color: #ef4444;">"Server connection error"</strong>.</p>
+        
+        <div style="background: rgba(239, 68, 68, 0.05); border: 1px dashed rgba(239, 68, 68, 0.2); border-radius: 16px; padding: 20px 16px; margin: 24px 0;">
+          <p style="font-weight: 600; color: #fff; margin-bottom: 12px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">To run the portal correctly, visit the active HTTP server:</p>
+          <a href="http://localhost:3000" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%); color: #03060a; padding: 12px 28px; border-radius: 12px; font-weight: 700; text-decoration: none; box-shadow: 0 0 20px rgba(0, 242, 254, 0.45); transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 0 30px rgba(0, 242, 254, 0.75)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 0 20px rgba(0, 242, 254, 0.45)';">
+            <i data-lucide="external-link" style="width: 16px; height: 16px;"></i> Open http://localhost:3000
+          </a>
+        </div>
+        
+        <p style="font-size: 0.78rem; color: var(--text-muted); border-top: 1px solid rgba(255,255,255,0.06); padding-top: 16px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+          <i data-lucide="terminal" style="width: 14px; height: 14px; color: var(--color-primary);"></i>
+          Ensure your Node backend server is running in the terminal.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Login Screen Overlay -->
+  <div id="login-overlay" class="login-overlay">
+    <!-- Sci-fi Laser perspective grid & digital lights background -->
+    <div class="cyber-bg-lines">
+      <div class="cyber-line line-left-top"></div>
+      <div class="cyber-line line-right-top"></div>
+      <div class="cyber-line line-left-bottom"></div>
+      <div class="cyber-line line-right-bottom"></div>
+      <div class="cyber-line line-center-horizontal"></div>
+      <div class="cyber-glow-orb orb-1"></div>
+      <div class="cyber-glow-orb orb-2"></div>
+      <div class="cyber-grid-mesh"></div>
+    </div>
+
+    <div class="login-container glass-card animate-fade-in">
+      <div class="login-header">
+        <div class="login-logo-wrapper">
+          <i data-lucide="droplet" class="login-logo-icon"></i>
+        </div>
+        <h2>HYDRO<span class="logo-accent">FLOW</span> PORTAL</h2>
+        <p>Well Motor Scheduler & Alerts Panel</p>
+      </div>
+      
+      <form id="login-form" class="login-form">
+        <div class="form-group">
+          <label for="login-username">Username</label>
+          <div class="input-wrapper">
+            <i data-lucide="user" class="input-icon"></i>
+            <input type="text" id="login-username" placeholder="Username" value="admin" required autocomplete="username">
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="login-password">Password</label>
+          <div class="input-wrapper">
+            <i data-lucide="lock" class="input-icon"></i>
+            <input type="password" id="login-password" placeholder="Password" required autocomplete="current-password">
+            <button type="button" class="password-toggle-btn" id="toggle-password-btn" title="Toggle password visibility">
+              <i data-lucide="eye" id="toggle-password-icon" class="toggle-icon"></i>
+            </button>
+          </div>
+        </div>
+
+        <div id="login-error" class="login-error hidden">
+          <i data-lucide="alert-triangle"></i>
+          <span id="login-error-text">Invalid username or password</span>
+        </div>
+        
+        <button type="submit" id="login-btn" class="btn-primary login-btn">
+          Unlock Portal
+        </button>
+
+        <div class="login-footer-links">
+          <a href="#" class="login-footer-link" id="forgot-pw-link">Forgot Password?</a>
+          <a href="#" class="login-footer-link" id="req-access-link">Request Access</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="app-container hidden" id="app-wrapper">
+    
+    <!-- Left Sidebar: Multi-Well List & WhatsApp Integration -->
+    <aside class="sidebar glass-card">
+      <div class="sidebar-header">
+        <div class="logo">
+          <i data-lucide="droplet" class="logo-icon"></i>
+          <h1>HydroFlow</h1>
+        </div>
+        <p class="tagline">Smart Well Share & Notification Manager</p>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="section-title">
+          <span>My Wells & Sites</span>
+          <button id="add-well-btn" class="btn-icon" title="Add New Well">
+            <i data-lucide="plus"></i>
+          </button>
+        </div>
+        <div id="wells-list" class="wells-list">
+          <!-- Dynamic Well Items populated by JS -->
+          <div class="well-item skeleton"></div>
+          <div class="well-item skeleton"></div>
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="whatsapp-card glass-card">
+          <div class="card-header">
+            <div class="status-indicator-group">
+              <span id="wa-status-dot" class="status-dot disconnected"></span>
+              <h3>WhatsApp Bot</h3>
+            </div>
+            <i data-lucide="message-square" class="wa-icon"></i>
+          </div>
+          
+          <div class="card-body">
+            <!-- QR code scanner state -->
+            <div id="wa-state-qr" class="qr-container hidden">
+              <p class="qr-instruction">Scan the QR code with WhatsApp to connect the notification bot:</p>
+              <div class="qr-wrapper">
+                <img id="wa-qr-img" src="" alt="WhatsApp QR Code">
+              </div>
+            </div>
+
+            <!-- Connecting state -->
+            <div id="wa-state-connecting" class="connecting-container hidden">
+              <div class="spinner"></div>
+              <p id="connecting-text">Connecting to WhatsApp...</p>
+            </div>
+
+            <!-- Connected state -->
+            <div id="wa-state-connected" class="connected-container hidden">
+              <div class="user-profile">
+                <i data-lucide="user-check" class="profile-icon"></i>
+                <div class="profile-details">
+                  <p id="wa-user-name" class="profile-name">Connected User</p>
+                  <p id="wa-user-number" class="profile-num">91XXXXXXXXXX</p>
+                </div>
+              </div>
+              <button id="wa-disconnect-btn" class="btn-secondary btn-sm">
+                <i data-lucide="log-out"></i> Disconnect Bot
+              </button>
+            </div>
+
+            <!-- Disconnected/Init state -->
+            <div id="wa-state-disconnected" class="disconnected-container">
+              <p class="wa-desc">Automated alerts are offline. Please wait for the QR code to load or reload the server.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area: Dashboard, Calendar, Configuration -->
+    <main class="main-content">
+      
+      <!-- Top Bar with Clock and Page Title -->
+      <header class="top-bar glass-card">
+        <div class="header-info">
+          <h2 id="active-well-title">Select a Well to Begin</h2>
+          <span class="location-badge" id="active-well-badge"><i data-lucide="map-pin"></i> Active Share</span>
+        </div>
+        <div class="header-actions" style="display: flex; gap: 12px; align-items: center;">
+          <div class="date-clock">
+            <i data-lucide="clock"></i>
+            <span id="live-time">13:30:55</span>
+          </div>
+          <button id="logout-btn" class="btn-secondary" style="padding: 8px 14px; font-size: 0.8rem; height: 38px; border-radius: 12px; display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="lock" style="width: 14px; height: 14px;"></i> Lock
+          </button>
+        </div>
+      </header>
+
+      <!-- Dashboard Cards Grid -->
+      <div class="dashboard-grid">
+        
+        <!-- Motor Status Glass Widget -->
+        <section class="status-widget glass-card">
+          <div class="widget-header">
+            <h3>Motor State Today</h3>
+            <span id="status-pill" class="status-pill-badge off-pill">OFF</span>
+          </div>
+          
+          <div class="widget-body">
+            <div class="motor-circle-container">
+              <div id="motor-glow-ring" class="glow-ring off"></div>
+              <div id="motor-pump-btn" class="motor-pump off">
+                <i data-lucide="power" class="pump-icon"></i>
+              </div>
+            </div>
+            
+            <div class="status-details text-center">
+              <h4 id="motor-status-text">Motor Rest/OFF Day</h4>
+              <p id="motor-substatus-text">Cycle status: Off Day 1 of 1</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Configuration Statistics Widget -->
+        <section class="stats-widget glass-card">
+          <h3>Schedule Overview</h3>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <span class="stat-label">Calculated Share</span>
+              <div class="stat-value-group">
+                <span class="stat-value" id="stat-share-percent">66.7</span>
+                <span class="stat-unit">%</span>
+              </div>
+              <span class="stat-sub">Based on active cycle</span>
+            </div>
+            
+            <div class="stat-card">
+              <span class="stat-label">Cycle Ratio</span>
+              <div class="stat-value-group">
+                <span class="stat-value" id="stat-ratio">2 / 1</span>
+              </div>
+              <span class="stat-sub">ON / OFF (Interval) Days</span>
+            </div>
+
+            <div class="stat-card">
+              <span class="stat-label">WhatsApp Alerts</span>
+              <div class="stat-value-group" id="stat-alerts-status">
+                <i data-lucide="bell" class="alert-icon-on text-emerald"></i>
+                <span class="stat-text">Active</span>
+              </div>
+              <span class="stat-sub" id="stat-alerts-time">Daily at 08:00</span>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Calendar & Configuration Section -->
+      <div class="bottom-layout">
+        
+        <!-- Interactive Calendar Card -->
+        <section class="calendar-card glass-card">
+          <div class="calendar-header">
+            <div class="calendar-nav">
+              <button id="prev-month-btn" class="btn-icon"><i data-lucide="chevron-left"></i></button>
+              <h3 id="calendar-month-year">May 2026</h3>
+              <button id="next-month-btn" class="btn-icon"><i data-lucide="chevron-right"></i></button>
+            </div>
+            
+            <div class="calendar-legend">
+              <div class="legend-item"><span class="legend-color legend-on"></span><span>ON Day</span></div>
+              <div class="legend-item"><span class="legend-color legend-off"></span><span>OFF (Rest)</span></div>
+            </div>
+          </div>
+
+          <div class="calendar-body">
+            <div class="weekdays-grid">
+              <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+            </div>
+            <div id="calendar-days-grid" class="days-grid">
+              <!-- Calendar days injected by JS -->
+            </div>
+          </div>
+          <div class="calendar-footer">
+            <p class="help-text"><i data-lucide="info"></i> Tip: Click on any date in the calendar to set it as the new **Cycle Start Date** (Day 1 of ON cycle).</p>
+          </div>
+        </section>
+
+        <!-- Well Settings / Configuration Form Card -->
+        <section class="settings-card glass-card">
+          <div class="card-title-group">
+            <h3>Configuration Panel</h3>
+            <p class="subtitle">Edit parameters for the selected well site</p>
+          </div>
+          
+          <form id="well-settings-form" class="settings-form">
+            <input type="hidden" id="well-id">
+            
+            <div class="form-row">
+              <div class="form-group col-12">
+                <label for="well-name"><i data-lucide="tag"></i> Well/Site Name</label>
+                <input type="text" id="well-name" placeholder="e.g. South Borewell 2" required>
+              </div>
+            </div>
+
+            <div class="form-row flex-row">
+              <div class="form-group col-6">
+                <label for="well-on-days"><i data-lucide="play"></i> Active ON Days</label>
+                <input type="number" id="well-on-days" min="1" max="30" value="2" required>
+              </div>
+              <div class="form-group col-6">
+                <label for="well-off-days"><i data-lucide="pause"></i> Rest OFF Days</label>
+                <input type="number" id="well-off-days" min="1" max="30" value="1" required>
+              </div>
+            </div>
+
+            <div class="form-row flex-row">
+              <div class="form-group col-6">
+                <label for="well-start-date"><i data-lucide="calendar"></i> Cycle Start Date</label>
+                <input type="date" id="well-start-date" required>
+              </div>
+              <div class="form-group col-6">
+                <label for="well-notify-time"><i data-lucide="alarm-clock"></i> Alert Time</label>
+                <input type="time" id="well-notify-time" value="08:00" required>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group col-12">
+                <label for="well-phone"><i data-lucide="phone"></i> WhatsApp Phone Number (with Country Code)</label>
+                <input type="tel" id="well-phone" placeholder="e.g. 919876543210 (digits only)" required>
+                <span class="input-tip">Ensure no leading +, spaces, or dashes are used. India: 91xxxxxxxxxx</span>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group toggle-group col-12">
+                <label class="switch-container">
+                  <input type="checkbox" id="well-alerts-enabled" checked>
+                  <span class="slider round"></span>
+                </label>
+                <span class="toggle-label">Enable Daily WhatsApp Alerts</span>
+              </div>
+            </div>
+
+            <div class="form-row templates-row">
+              <div class="form-group col-12">
+                <div class="template-header">
+                  <label for="well-msg-on"><i data-lucide="message-square-plus"></i> ON Message Template</label>
+                  <span class="variables-tag" title="Available variables: {well_name}, {status}, {day_index}, {total_days}, {share_percent}">View Dynamic Tags</span>
+                </div>
+                <textarea id="well-msg-on" rows="3" required></textarea>
+              </div>
+
+              <div class="form-group col-12">
+                <div class="template-header">
+                  <label for="well-msg-off"><i data-lucide="message-square"></i> OFF Message Template</label>
+                </div>
+                <textarea id="well-msg-off" rows="3" required></textarea>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" id="save-settings-btn" class="btn-primary">
+                <i data-lucide="save"></i> Save Configuration
+              </button>
+              
+              <button type="button" id="send-test-btn" class="btn-secondary">
+                <i data-lucide="send"></i> Send Test Message
+              </button>
+            </div>
+          </form>
+        </section>
+
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- Lucide Icon compiler script -->
+  <script>
+    lucide.createIcons();
+  </script>
+  <!-- Client Application Script -->
+  <script src="app.js"></script>
+</body>
+</html>

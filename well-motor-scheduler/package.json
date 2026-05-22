@@ -1,0 +1,15 @@
+{
+  "name": "well-motor-scheduler",
+  "version": "1.0.0",
+  "description": "Multi-site well motor scheduler with dynamic WhatsApp notifications and interactive calendar",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "whatsapp-web.js": "^1.26.0",
+    "qrcode": "^1.5.4",
+    "node-cron": "^3.0.3"
+  }
+}
