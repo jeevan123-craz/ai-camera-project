@@ -217,9 +217,16 @@ function speak(text) {
         const voices = speechSynthesis.getVoices();
         
         if (state.language === 'ta-IN') {
-            // Find a Tamil voice
-            utter.voice = voices.find(v => v.lang.includes('ta') || v.name.toLowerCase().includes('tamil')) || voices[0] || null;
+            utter.lang = 'ta-IN'; // Force browser's phonetic engine to Tamil
+            // Find a premium female Tamil voice
+            utter.voice = 
+                voices.find(v => v.lang.includes('ta') && v.name.includes('Pallavi')) ||
+                voices.find(v => v.name.includes('Google') && v.name.includes('Tamil')) ||
+                voices.find(v => v.lang.includes('ta') && v.name.toLowerCase().includes('female')) ||
+                voices.find(v => v.lang.includes('ta')) || 
+                voices[0] || null;
         } else {
+            utter.lang = 'en-US';
             utter.voice  =
                 // 1. Premium Edge/Windows Natural Female Voices (Beautiful & Ultra-realistic)
                 voices.find(v => v.name.includes('Jenny Online (Natural)')) ||
@@ -487,9 +494,11 @@ function addBubble(role, text, isInterim = false) {
 
     const el = document.createElement('div');
     el.className = `bubble ${role}${isInterim ? ' interim' : ''}`;
+    // Convert newlines to <br> so the AI's lists look clean!
+    const formattedText = esc(text).replace(/\n/g, '<br>');
     el.innerHTML = `
         <div class="bubble-label">${role === 'user' ? 'You' : '🤖 MedGuard AI'}</div>
-        <div class="bubble-text">${esc(text)}</div>
+        <div class="bubble-text" style="line-height: 1.5;">${formattedText}</div>
     `;
     DOM.transcriptBody.appendChild(el);
     DOM.transcriptBody.scrollTop = DOM.transcriptBody.scrollHeight;
