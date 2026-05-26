@@ -18,9 +18,16 @@ const WebSocket = require('ws');
 const path = require('path');
 const ai = require('./ai');
 const calendar = require('./calendar');
-const sheets = require('./sheets');
-const whatsapp = require('./whatsapp');
-
+const sheets = require('./sheets');// WhatsApp is disabled on Render to prevent Out Of Memory crashes on the free tier.
+// The browser-based AI voice assistant will still work perfectly.
+const whatsapp = {
+    isReady: false,
+    qrCode: null,
+    on: () => {},
+    sendDirectMessage: async () => false,
+    start: () => { console.log('WhatsApp disabled to save memory.'); }
+};
+// const whatsapp = require('./whatsapp');
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
