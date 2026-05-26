@@ -20,6 +20,7 @@ const DOM = {
     iconMic:        $('iconMic'),
     iconEnd:        $('iconEnd'),
     endCallBtn:     $('endCallBtn'),
+    langSwitch:     $('langSwitch'),
     statusDot:      $('statusDot'),
     statusLabel:    $('statusLabel'),
     waveform:       $('waveform'),
@@ -40,6 +41,7 @@ const state = {
     sessionId:    null,
     recognition:  null,
     processing:   false,    // guard: prevent double-send
+    language:     'en-US',  // 'en-US' or 'ta-IN'
 };
 
 // ── Session ID (persisted per browser tab) ───────
@@ -212,22 +214,27 @@ function speak(text) {
         // Priority order: Best natural-sounding beautiful female voices (Jenny, Michelle, Aria, Sonia, etc.)
         const voices = speechSynthesis.getVoices();
         
-        utter.voice  =
-            // 1. Premium Edge/Windows Natural Female Voices (Beautiful & Ultra-realistic)
-            voices.find(v => v.name.includes('Jenny Online (Natural)')) ||
-            voices.find(v => v.name.includes('Michelle Online (Natural)')) ||
-            voices.find(v => v.name.includes('Aria Online (Natural)')) ||
-            voices.find(v => v.name.includes('Sonia Online (Natural)')) ||
-            voices.find(v => v.name.includes('Natasha Online (Natural)')) ||
-            // 2. High-Quality Google Chrome Female Voices
-            voices.find(v => v.name === 'Google UK English Female') ||
-            voices.find(v => v.name === 'Google US English') ||
-            // 3. Fallbacks for other platforms (Safari, Mobile, standard OS)
-            voices.find(v => v.name.toLowerCase().includes('female') && v.lang.startsWith('en')) ||
-            voices.find(v => v.name.includes('Zira')) ||  // Standard Windows female desktop
-            voices.find(v => v.name.includes('Hazel')) || // Standard UK female desktop
-            voices.find(v => v.lang === 'en-US') ||
-            voices[0] || null;
+        if (state.language === 'ta-IN') {
+            // Find a Tamil voice
+            utter.voice = voices.find(v => v.lang.includes('ta') || v.name.toLowerCase().includes('tamil')) || voices[0] || null;
+        } else {
+            utter.voice  =
+                // 1. Premium Edge/Windows Natural Female Voices (Beautiful & Ultra-realistic)
+                voices.find(v => v.name.includes('Jenny Online (Natural)')) ||
+                voices.find(v => v.name.includes('Michelle Online (Natural)')) ||
+                voices.find(v => v.name.includes('Aria Online (Natural)')) ||
+                voices.find(v => v.name.includes('Sonia Online (Natural)')) ||
+                voices.find(v => v.name.includes('Natasha Online (Natural)')) ||
+                // 2. High-Quality Google Chrome Female Voices
+                voices.find(v => v.name === 'Google UK English Female') ||
+                voices.find(v => v.name === 'Google US English') ||
+                // 3. Fallbacks for other platforms (Safari, Mobile, standard OS)
+                voices.find(v => v.name.toLowerCase().includes('female') && v.lang.startsWith('en')) ||
+                voices.find(v => v.name.includes('Zira')) ||  // Standard Windows female desktop
+                voices.find(v => v.name.includes('Hazel')) || // Standard UK female desktop
+                voices.find(v => v.lang === 'en-US') ||
+                voices[0] || null;
+        }
 
         utter.onend   = resolve;
         utter.onerror = resolve;
@@ -252,7 +259,7 @@ function checkSpeechSupport() {
 
 function buildRecognition(SR) {
     const r = new SR();
-    r.lang             = 'en-US';
+    r.lang             = state.language;
     r.continuous       = false;
     r.interimResults   = true;
     r.maxAlternatives  = 1;
@@ -359,7 +366,7 @@ async function sendToAI(message) {
         const res = await fetch('/chat', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ sessionId: state.sessionId, message }),
+            body:    JSON.stringify({ sessionId: state.sessionId, message, language: state.language }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const { reply } = await res.json();
@@ -505,6 +512,13 @@ window.addEventListener('DOMContentLoaded', () => {
     if (state.recognition) {
         DOM.micBtn.addEventListener('click', handleMicClick);
         if (DOM.endCallBtn) DOM.endCallBtn.addEventListener('click', endCall);
+    }
+    
+    if (DOM.langSwitch) {
+        DOM.langSwitch.addEventListener('change', (e) => {
+            state.language = e.target.checked ? 'ta-IN' : 'en-US';
+            if (state.recognition) state.recognition.lang = state.language;
+        });
     }
 
     // Pre-load browser TTS voices (Chrome loads async)

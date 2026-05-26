@@ -104,7 +104,7 @@ app.get('/api/whatsapp-status', (req, res) => {
 
 // ── Browser Call Endpoint ──────────────────────────────────────────────────
 app.post('/chat', async (req, res) => {
-    const { sessionId, message } = req.body;
+    const { sessionId, message, language } = req.body;
 
     if (!sessionId || !message || !message.trim()) {
         return res.status(400).json({ error: 'sessionId and message are required.' });
@@ -113,7 +113,7 @@ app.post('/chat', async (req, res) => {
     addLog('Browser', 'user', message.trim(), sessionId);
 
     try {
-        let aiResponse = await ai.processUserInput(sessionId, message.trim());
+        let aiResponse = await ai.processUserInput(sessionId, message.trim(), language);
 
         // Handle booking tag  [BOOK: YYYY-MM-DDTHH:MM:SS|PatientName|Reason]
         const bookRegex = /\[BOOK:\s*(.*?)\|(.*?)\|(.*?)\]/i;

@@ -10,7 +10,7 @@ const genAI = new GoogleGenAI({ apiKey: GEMINI_KEY });
 // In-memory store for conversation history per call
 const activeCalls = {};
 
-async function processUserInput(callSid, userInput) {
+async function processUserInput(callSid, userInput, language = 'en-US') {
     // Initialize history for this call if it doesn't exist
     if (!activeCalls[callSid]) {
         activeCalls[callSid] = { history: [] };
@@ -19,12 +19,12 @@ async function processUserInput(callSid, userInput) {
     // Get current calendar state to inject into system prompt
     const availableSlots = await calendar.getAvailableSlots();
 
-    const systemInstruction = `You are a helpful, professional, and friendly AI receptionist named Alex, assistant of Jeevankishore from MedGuard Clinic.
+    let systemInstruction = `You are a helpful, professional, and friendly AI receptionist named Alex, assistant of Jeevankishore from MedGuard Clinic.
 Your job is to answer incoming patient queries (via WhatsApp or Browser), answer basic questions, and schedule appointments.
 Always keep your responses relatively brief, as you are speaking over a phone line or messaging.
 
 Current Available Appointment Slots:
-${availableSlots.length > 0 ? availableSlots.join('\\n') : 'No slots available right now.'}
+${availableSlots.length > 0 ? availableSlots.join('\n') : 'No slots available right now.'}
 
 Instructions for Booking:
 1. If a patient wants to book, ask them for their preferred time from the available slots.
@@ -40,6 +40,10 @@ Sending Information to Phone:
 2. CRITICAL: If the user HAS PROVIDED their phone number (e.g., "+1234567890") in the chat, you MUST append the exact string [SEND_WHATSAPP: <THEIR_NUMBER>] at the very end of your reply.
 3. Example: "I have sent the clinic location and emergency details to your WhatsApp. [SEND_WHATSAPP: +1234567890]"
 4. Never output the tag if they haven't provided a number yet.`;
+
+    if (language === 'ta-IN') {
+        systemInstruction += `\n\nCRITICAL LANGUAGE INSTRUCTION: The user is speaking in Tamil. You MUST respond ENTIRELY in Tamil (தமிழ்) using natural, friendly conversational Tamil. The booking and whatsapp tags must still remain in English exact syntax.`;
+    }
 
     try {
         const chat = genAI.chats.create({
