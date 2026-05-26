@@ -35,12 +35,13 @@ const wss = new WebSocket.Server({ server });
 app.use(express.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
+app.set('trust proxy', true);
 
 // ── Live Logs Array ──
 const callLogs = [];
 
-function addLog(source, role, text, sessionId) {
-    callLogs.unshift({ source, role, text, sessionId, timestamp: new Date().toISOString() });
+function addLog(source, role, text, sessionId, extra = {}) {
+    callLogs.unshift({ source, role, text, sessionId, timestamp: new Date().toISOString(), extra });
     if (callLogs.length > 100) callLogs.pop(); // Keep last 100 logs
     broadcastDashboardUpdate();
 }
@@ -110,7 +111,10 @@ app.post('/chat', async (req, res) => {
         return res.status(400).json({ error: 'sessionId and message are required.' });
     }
 
-    addLog('Browser', 'user', message.trim(), sessionId);
+    const ip = req.ip || req.connection?.remoteAddress || 'Unknown IP';
+    const userAgent = req.headers['user-agent'] || 'Unknown Device';
+
+    addLog('Browser', 'user', message.trim(), sessionId, { ip, userAgent });
 
     try {
         let aiResponse = await ai.processUserInput(sessionId, message.trim(), language);

@@ -143,9 +143,11 @@ function renderDashboard(appointments, slots, logs = []) {
             liveLogsList.innerHTML = logs.map(log => {
                 const time = new Date(log.timestamp).toLocaleTimeString();
                 const icon = log.role === 'user' ? '👤' : (log.role === 'ai' ? '🤖' : '⚙️');
+                const extraInfo = log.extra?.ip ? `<div style="font-size: 0.65rem; color: #6b7280; margin-top: 0.25rem;">IP: ${esc(log.extra.ip)} | Device: ${esc(log.extra.userAgent)}</div>` : '';
                 return `<div style="margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.1);">
                     <div style="font-size: 0.75rem; color: #9ca3af; margin-bottom: 0.25rem;">[${log.source}] ${time} - ${esc(log.sessionId)}</div>
                     <div><strong>${icon}</strong> ${esc(log.text)}</div>
+                    ${extraInfo}
                 </div>`;
             }).join('');
         }
@@ -377,10 +379,32 @@ async function sendToAI(message) {
     }
 }
 
+// ── UI Sounds ────────────────────────────────────
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playClickSound() {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(300, audioCtx.currentTime + 0.1);
+    
+    gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+    
+    osc.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.1);
+}
+
 // ════════════════════════════════════════════════
 // Mic Button
 // ════════════════════════════════════════════════
 async function handleMicClick() {
+    playClickSound();
     if (!state.recognition) return;
 
     if (!state.callActive) {
