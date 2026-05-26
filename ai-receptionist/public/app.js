@@ -19,6 +19,7 @@ const DOM = {
     micWrapper:     $('micWrapper'),
     iconMic:        $('iconMic'),
     iconEnd:        $('iconEnd'),
+    endCallBtn:     $('endCallBtn'),
     statusDot:      $('statusDot'),
     statusLabel:    $('statusLabel'),
     waveform:       $('waveform'),
@@ -378,8 +379,7 @@ async function handleMicClick() {
     if (!state.callActive) {
         // ── START CALL ──
         state.callActive = true;
-        DOM.iconMic.classList.add('hidden');
-        DOM.iconEnd.classList.remove('hidden');
+        if (DOM.endCallBtn) DOM.endCallBtn.classList.remove('hidden');
 
         const greeting = "Hello! I am Alex, assistant of Jeevankishore from MedGuard Clinic. How can I help you today?";
         addBubble('ai', greeting);
@@ -387,8 +387,15 @@ async function handleMicClick() {
         if (state.callActive) startListening();
 
     } else {
-        // ── END CALL ──
-        endCall();
+        // ── PUSH TO TALK / INTERRUPT ──
+        if (state.phase === 'speaking') {
+            speechSynthesis.cancel();
+            startListening();
+        } else if (state.phase === 'idle') {
+            startListening();
+        } else if (state.phase === 'listening') {
+            stopListening();
+        }
     }
 }
 
@@ -397,8 +404,7 @@ function endCall() {
     speechSynthesis.cancel();
     stopListening();
     setPhase('idle');
-    DOM.iconMic.classList.remove('hidden');
-    DOM.iconEnd.classList.add('hidden');
+    if (DOM.endCallBtn) DOM.endCallBtn.classList.add('hidden');
     addBubble('ai', 'Call ended. Have a great day! 👋');
 }
 
@@ -498,6 +504,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     if (state.recognition) {
         DOM.micBtn.addEventListener('click', handleMicClick);
+        if (DOM.endCallBtn) DOM.endCallBtn.addEventListener('click', endCall);
     }
 
     // Pre-load browser TTS voices (Chrome loads async)
