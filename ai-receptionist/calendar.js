@@ -1,0 +1,120 @@
+const { google } = require('googleapis');
+const { getAuthClient } = require('./googleAuth');
+
+const auth = getAuthClient();
+const calendar = google.calendar({ version: 'v3', auth });
+
+const CALENDAR_ID = 'primary'; // Use the user's primary calendar
+
+async function getAvailableSlots() {
+    // Generate some mock slots for the next 2 days starting from tomorrow at 9 AM, 11 AM, 2 PM, 4 PM
+    // In a real production system, you'd query calendar.freebusy to find exact gaps.
+    // To keep the demo fast and reliable, we'll return fixed slots and filter out booked ones.
+    const slots = [];
+    const now = new Date();
+    
+    for (let i = 1; i <= 2; i++) {
+        const d = new Date(now);
+        d.setDate(d.getDate() + i);
+        
+        const hours = [9, 11, 14, 16];
+        for (const h of hours) {
+            d.setHours(h, 0, 0, 0);
+            slots.push(d.toISOString());
+        }
+    }
+
+    // Get all events in this range to see what's booked
+    const timeMin = new Date();
+    const timeMax = new Date();
+    timeMax.setDate(timeMax.getDate() + 3);
+
+    try {
+        const res = await calendar.events.list({
+            calendarId: CALENDAR_ID,
+            timeMin: timeMin.toISOString(),
+            timeMax: timeMax.toISOString(),
+            singleEvents: true,
+            orderBy: 'startTime',
+        });
+
+        const bookedTimes = res.data.items.map(event => {
+            if (event.start.dateTime) return new Date(event.start.dateTime).getTime();
+            return null;
+        }).filter(t => t !== null);
+
+        // Filter out slots that are already booked
+        return slots.filter(slotStr => {
+            const slotTime = new Date(slotStr).getTime();
+            // Allow 1 hour gap
+            return !bookedTimes.some(b => Math.abs(b - slotTime) < 3600000);
+        });
+    } catch (err) {
+        console.error('Error fetching from Google Calendar:', err);
+        return slots; // fallback to all slots
+    }
+}
+
+async function getAllAppointments() {
+    try {
+        const timeMin = new Date();
+        const timeMax = new Date();
+        timeMax.setDate(timeMax.getDate() + 7); // Next 7 days
+
+        const res = await calendar.events.list({
+            calendarId: CALENDAR_ID,
+            timeMin: timeMin.toISOString(),
+            timeMax: timeMax.toISOString(),
+            singleEvents: true,
+            orderBy: 'startTime',
+        });
+
+        return res.data.items.map(event => ({
+            id: event.id,
+            patientName: event.summary ? event.summary.replace('Appointment: ', '') : 'Unknown',
+            time: event.start.dateTime || event.start.date,
+            reason: event.description || 'Consultation'
+        }));
+    } catch (err) {
+        console.error('Error fetching appointments:', err);
+        return [];
+    }
+}
+
+async function bookAppointment(patientName, time, reason) {
+    try {
+        const startTime = new Date(time);
+        const endTime = new Date(startTime);
+        endTime.setHours(endTime.getHours() + 1); // 1 hour appointment
+
+        const event = {
+            summary: `Appointment: ${patientName}`,
+            description: reason || 'Consultation',
+            start: {
+                dateTime: startTime.toISOString(),
+                timeZone: 'Asia/Kolkata', // Local timezone
+            },
+            end: {
+                dateTime: endTime.toISOString(),
+                timeZone: 'Asia/Kolkata',
+            },
+        };
+
+        const res = await calendar.events.insert({
+            calendarId: CALENDAR_ID,
+            resource: event,
+        });
+
+        console.log(`✅ Booked in Google Calendar: ${res.data.htmlLink}`);
+        return { success: true, appointment: event };
+    } catch (err) {
+        console.error('Error creating calendar event:', err);
+        return { success: false, message: 'Google Calendar API error.' };
+    }
+}
+
+module.exports = {
+    getAvailableSlots,
+    getAllAppointments,
+    bookAppointment
+};

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedGuard Admin Dashboard</title>
+    <link rel="stylesheet" href="admin.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo-container">
+                <div class="logo-icon">🤖</div>
+                <h2>MedGuard AI</h2>
+            </div>
+            <nav>
+                <a href="/" class="nav-item">
+                    <span class="icon">🎙️</span> Receptionist
+                </a>
+                <a href="#" class="nav-item active">
+                    <span class="icon">📊</span> Dashboard
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="icon">⚙️</span> Settings
+                </a>
+            </nav>
+            <div class="status-card">
+                <h4>System Status</h4>
+                <div class="status-indicator">
+                    <div class="dot pulse"></div>
+                    <span>Online & Auto-Calling</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header>
+                <div>
+                    <h1>Appointments Dashboard</h1>
+                    <p>Live sync with Google Calendar & Sheets</p>
+                </div>
+                <button class="refresh-btn" onclick="fetchAppointments()">
+                    🔄 Refresh
+                </button>
+            </header>
+
+            <div class="stats-row">
+                <div class="stat-card">
+                    <h3>Total Bookings</h3>
+                    <div class="stat-value" id="total-bookings">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Today's Bookings</h3>
+                    <div class="stat-value" id="today-bookings">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Upcoming</h3>
+                    <div class="stat-value" id="upcoming-bookings">0</div>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table class="glass-table">
+                    <thead>
+                        <tr>
+                            <th>Patient Name</th>
+                            <th>Date & Time</th>
+                            <th>Reason / Symptoms</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="appointments-body">
+                        <tr>
+                            <td colspan="4" class="loading-state">Loading appointments...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+    
+    <script src="admin.js"></script>
+</body>
+</html>

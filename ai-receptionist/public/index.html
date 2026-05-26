@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedGuard AI — Receptionist System</title>
+    <meta name="description" content="MedGuard Clinic's AI-powered receptionist. Talk via browser or phone — book appointments 24/7.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app-shell">
+
+    <!-- ══ HEADER ══ -->
+    <header class="site-header">
+        <div class="header-brand">
+            <div class="brand-pulse"></div>
+            <h1 class="brand-name">MedGuard <span>AI</span></h1>
+        </div>
+        <div class="header-meta">
+            <div class="connection-badge" id="connectionBadge">
+                <span class="badge-dot" id="badgeDot"></span>
+                <span id="badgeLabel">Connecting…</span>
+            </div>
+            <div class="model-badge">Gemini 2.5 Flash</div>
+        </div>
+    </header>
+
+    <main class="main-content">
+
+        <!-- ══ BROWSER CALL SECTION ══ -->
+        <section class="call-section" aria-label="Browser Voice Call">
+
+            <!-- Left: Controls -->
+            <div class="call-controls">
+                <div class="call-label-row">
+                    <span class="call-mode-tag">🌐 Browser Call</span>
+                </div>
+                <p class="call-description">
+                    Talk directly to the AI receptionist through your browser.<br>No phone or account needed.
+                </p>
+
+                <!-- Mic Button -->
+                <div class="mic-wrapper" id="micWrapper">
+                    <div class="mic-ring mic-ring-outer"></div>
+                    <div class="mic-ring mic-ring-middle"></div>
+                    <button class="mic-btn" id="micBtn" aria-label="Start voice call">
+                        <!-- Mic icon -->
+                        <svg id="iconMic" class="btn-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4z"/>
+                            <path d="M19 10a1 1 0 0 0-2 0 5 5 0 0 1-10 0 1 1 0 0 0-2 0 7 7 0 0 0 6 6.92V19H9a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2h-2v-2.08A7 7 0 0 0 19 10z"/>
+                        </svg>
+                        <!-- End icon -->
+                        <svg id="iconEnd" class="btn-icon hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Text Chat Input -->
+                <div class="text-chat-wrapper" style="margin-top: 1rem;">
+                    <form id="textChatForm" style="display: flex; gap: 0.5rem; width: 100%;">
+                        <input type="text" id="textChatInput" placeholder="Or type your message here..." style="flex: 1; padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); color: white;" autocomplete="off">
+                        <button type="submit" style="padding: 0.75rem 1rem; border-radius: 8px; border: none; background: #60a5fa; color: white; cursor: pointer;">Send</button>
+                    </form>
+                </div>
+
+                <!-- Status -->
+                <div class="call-status-row">
+                    <span class="status-dot" id="statusDot"></span>
+                    <span class="status-label" id="statusLabel">Click mic to start</span>
+                </div>
+
+                <!-- Waveform (visible while listening) -->
+                <div class="waveform" id="waveform" aria-hidden="true">
+                    <span class="wave-bar"></span><span class="wave-bar"></span>
+                    <span class="wave-bar"></span><span class="wave-bar"></span>
+                    <span class="wave-bar"></span><span class="wave-bar"></span>
+                    <span class="wave-bar"></span>
+                </div>
+
+                <!-- Browser warning -->
+                <div class="browser-warning hidden" id="browserWarning">
+                    ⚠️ Speech recognition requires <strong>Chrome</strong> or <strong>Edge</strong>.
+                </div>
+            </div>
+
+            <!-- Right: Transcript -->
+            <div class="transcript-panel">
+                <div class="transcript-head">
+                    <span>Conversation</span>
+                    <button class="clear-btn" id="clearBtn">Clear</button>
+                </div>
+                <div class="transcript-body" id="transcriptBody">
+                    <div class="transcript-empty" id="transcriptEmpty">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                        </svg>
+                        <p>Your conversation will appear here</p>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- ══ DASHBOARD SECTION ══ -->
+        <section class="dashboard-section" aria-label="Appointments Dashboard">
+
+            <div class="panel" style="grid-column: 1 / -1; background: rgba(255, 255, 255, 0.02); border: 1px dashed rgba(255, 255, 255, 0.15);">
+                <div class="panel-head">
+                    <h2>WhatsApp Bot Connection</h2>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span id="waDot" style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #ef4444;"></span>
+                        <span id="waLabel" style="font-weight: 600; font-size: 0.85rem;">Offline</span>
+                    </div>
+                </div>
+                <div class="panel-body" id="waBody" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5rem; text-align: center;">
+                    <p class="placeholder-msg">Initializing WhatsApp engine...</p>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-head">
+                    <h2>Upcoming Appointments</h2>
+                    <span class="panel-badge" id="apptCount">0</span>
+                </div>
+                <div class="panel-body" id="apptList">
+                    <p class="placeholder-msg">Loading…</p>
+                </div>
+            </div>
+
+            <div class="panel" style="grid-column: 1 / -1;">
+                <div class="panel-head">
+                    <h2>Live Activity Logs (WhatsApp & Phone)</h2>
+                    <span class="panel-badge" id="logsCount">0</span>
+                </div>
+                <div class="panel-body" id="liveLogsList" style="max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.2); border-radius: 8px; padding: 1rem;">
+                    <p class="placeholder-msg">Waiting for activity...</p>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-head">
+                    <h2>Available Slots</h2>
+                    <span class="panel-badge" id="slotsCount">0</span>
+                </div>
+                <div class="panel-body slots-grid" id="slotsList">
+                    <p class="placeholder-msg">Loading…</p>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

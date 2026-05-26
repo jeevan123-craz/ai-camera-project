@@ -1,0 +1,22 @@
+{
+  "appointments": [
+    {
+      "id": 1,
+      "patientName": "John Doe",
+      "time": "2026-05-24T10:00:00",
+      "reason": "General Checkup"
+    },
+    {
+      "id": 1779513845678,
+      "patientName": "Robin",
+      "time": "2026-05-24T09:00:00",
+      "reason": "Browser Call"
+    }
+  ],
+  "availableSlots": [
+    "2026-05-24T11:00:00",
+    "2026-05-24T14:00:00",
+    "2026-05-25T10:00:00",
+    "2026-05-25T15:00:00"
+  ]
+}
