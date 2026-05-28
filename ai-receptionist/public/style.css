@@ -470,3 +470,72 @@ body {
     .site-header { flex-direction: column; gap: 0.85rem; align-items: flex-start; }
     .header-meta { flex-wrap: wrap; }
 }
+
+/* ── Interactive Slot Picker Table ───────────────── */
+.slot-picker-table {
+    margin-top: 1rem;
+    background: rgba(15, 23, 42, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    padding: 1rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
+}
+
+.slot-picker-row {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.slot-picker-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.slot-picker-row:first-child {
+    padding-top: 0;
+}
+
+.slot-picker-date {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--indigo-light);
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.slot-picker-times {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.slot-picker-btn {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--text);
+    border-radius: 20px;
+    padding: 0.4rem 0.9rem;
+    font-size: 0.78rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.slot-picker-btn:hover {
+    background: linear-gradient(135deg, var(--indigo) 0%, #38bdf8 100%);
+    border-color: transparent;
+    color: white;
+    transform: translateY(-1.5px);
+    box-shadow: 0 0 14px rgba(99, 102, 241, 0.45);
+}
+
+.slot-picker-btn:active {
+    transform: translateY(0) scale(0.96);
+}
+

@@ -208,7 +208,19 @@ function speak(text) {
         setPhase('speaking');
         speechSynthesis.cancel(); // clear any pending speech
 
-        const utter  = new SpeechSynthesisUtterance(text);
+        // Clean out specific tags from spoken text
+        let cleanText = text || '';
+        cleanText = cleanText.replace(/\[BOOK:\s*[^\]]+\]/gi, '');
+        cleanText = cleanText.replace(/\[SEND_WHATSAPP:\s*[^\]]+\]/gi, '');
+        cleanText = cleanText.replace(/\[TABLE:\s*[^\]]+\]/gi, '');
+        cleanText = cleanText.replace(/\s+/g, ' ').trim();
+
+        if (!cleanText) {
+            resolve();
+            return;
+        }
+
+        const utter  = new SpeechSynthesisUtterance(cleanText);
         utter.rate   = 0.92;  // slightly slower = clearer
         utter.pitch  = 1.0;
         utter.volume = 1.0;
@@ -494,8 +506,61 @@ function addBubble(role, text, isInterim = false) {
 
     const el = document.createElement('div');
     el.className = `bubble ${role}${isInterim ? ' interim' : ''}`;
-    // Convert newlines to <br> so the AI's lists look clean!
-    const formattedText = esc(text).replace(/\n/g, '<br>');
+
+    let cleanTextDisplay = text || '';
+    // Strip [BOOK: ...] and [SEND_WHATSAPP: ...] from text bubbles
+    cleanTextDisplay = cleanTextDisplay.replace(/\[BOOK:\s*[^\]]+\]/gi, '').replace(/\[SEND_WHATSAPP:\s*[^\]]+\]/gi, '');
+
+    let parsedTableHTML = '';
+
+    // Check if there is a table tag [TABLE: ...]
+    const tableRegex = /\[TABLE:\s*([^\]]+)\]/i;
+    const tableMatch = cleanTextDisplay.match(tableRegex);
+
+    if (tableMatch) {
+        // Strip the [TABLE: ...] tag from display text
+        cleanTextDisplay = cleanTextDisplay.replace(/\[TABLE:\s*[^\]]+\]/gi, '').trim();
+
+        const slotsStr = tableMatch[1];
+        const slots = slotsStr.split(',').map(s => s.trim()).filter(s => s);
+
+        if (slots.length > 0) {
+            const groups = {};
+            slots.forEach(slotStr => {
+                const d = new Date(slotStr);
+                if (isNaN(d.getTime())) return;
+                const dateKey = d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+                if (!groups[dateKey]) groups[dateKey] = [];
+                groups[dateKey].push({
+                    iso: slotStr,
+                    timeStr: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                });
+            });
+
+            parsedTableHTML = `<div class="slot-picker-table">`;
+            Object.keys(groups).forEach(dateLabel => {
+                parsedTableHTML += `
+                    <div class="slot-picker-row">
+                        <div class="slot-picker-date">${dateLabel}</div>
+                        <div class="slot-picker-times">
+                `;
+                groups[dateLabel].forEach(slot => {
+                    const clickAction = `selectSlot('${slot.iso}', '${slot.timeStr}', '${dateLabel.replace(/'/g, "\\'")}')`;
+                    parsedTableHTML += `
+                        <button class="slot-picker-btn" onclick="${clickAction}">${slot.timeStr}</button>
+                    `;
+                });
+                parsedTableHTML += `
+                        </div>
+                    </div>
+                `;
+            });
+            parsedTableHTML += `</div>`;
+        }
+    }
+
+    const formattedText = esc(cleanTextDisplay).replace(/\n/g, '<br>') + parsedTableHTML;
+
     el.innerHTML = `
         <div class="bubble-label">${role === 'user' ? 'You' : '🤖 MedGuard AI'}</div>
         <div class="bubble-text" style="line-height: 1.5;">${formattedText}</div>
@@ -504,6 +569,27 @@ function addBubble(role, text, isInterim = false) {
     DOM.transcriptBody.scrollTop = DOM.transcriptBody.scrollHeight;
     return el;
 }
+
+window.selectSlot = (iso, timeStr, dateLabel) => {
+    const input = document.getElementById('textChatInput');
+    if (input) {
+        input.value = `I would like to book the slot on ${dateLabel} at ${timeStr}`;
+        input.focus();
+        
+        // Blink the send button to encourage sending!
+        const sendBtn = document.querySelector('#textChatForm button[type="submit"]');
+        if (sendBtn) {
+            sendBtn.style.transform = 'scale(1.08)';
+            sendBtn.style.boxShadow = '0 0 15px rgba(99, 102, 241, 0.6)';
+            sendBtn.style.background = '#6366f1';
+            setTimeout(() => {
+                sendBtn.style.transform = '';
+                sendBtn.style.boxShadow = '';
+                sendBtn.style.background = '';
+            }, 1000);
+        }
+    }
+};
 
 DOM.clearBtn.addEventListener('click', () => {
     // Remove all bubbles but keep the empty placeholder
