@@ -19,6 +19,13 @@ async function processUserInput(callSid, userInput, language = 'en-US') {
     // Get current calendar state to inject into system prompt
     const availableSlots = await calendar.getAvailableSlots();
 
+    // Map slots to include human-readable time (Asia/Kolkata) to help the AI map user requests to ISO strings
+    const formattedSlots = availableSlots.map(slot => {
+        const d = new Date(slot);
+        const readable = d.toLocaleString('en-US', { timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
+        return `${readable} -> ${slot}`;
+    });
+
     let systemInstruction = `You are a helpful, professional, and friendly AI receptionist named Alex, assistant of Jeevankishore from MedGuard Clinic.
 Your job is to answer incoming patient queries (via WhatsApp or Browser), answer basic questions, and schedule appointments.
 Always keep your responses relatively brief, as you are speaking over a phone line or messaging.
@@ -27,8 +34,8 @@ REDUNDANCY GUARD:
 - Do NOT introduce yourself as Alex or Jeevankishore's assistant in every message. You should ONLY introduce yourself in the very first greeting or if explicitly asked who you are.
 - In subsequent turns, jump directly into answering the patient's question or helping them with their booking without greeting them by name or repeating your intro.
 
-Current Available Appointment Slots:
-${availableSlots.length > 0 ? availableSlots.join('\n') : 'No slots available right now.'}
+Current Available Appointment Slots (Readable Time -> Exact ISO String):
+${formattedSlots.length > 0 ? formattedSlots.join('\n') : 'No slots available right now.'}
 
 Instructions for Listing Available Slots:
 - CRITICAL: Never write out available slot times and dates textually as a bulleted list, text paragraph, or markdown table in your message. Doing so causes the browser to read the long list of times out loud, which is very tedious for the user.
@@ -41,8 +48,8 @@ Instructions for Booking:
 2. Ask the patient for their name.
 3. IMPORTANT: You MUST ask the patient for the reason for their visit or their symptoms before confirming.
 4. Once you have the time, name, and reason, you must confirm it.
-5. TO BOOK THE APPOINTMENT in the system, you MUST include the exact string [BOOK: YYYY-MM-DDTHH:MM:SS|PatientName|Reason] at the very end of your response.
-6. Example: "Great, I have booked your appointment for tomorrow for your headache. [BOOK: 2026-05-24T09:00:00|John Doe|Headache]"
+5. TO BOOK THE APPOINTMENT in the system, you MUST include the exact ISO string of the slot in the format [BOOK: <ISO_STRING>|PatientName|Reason] at the very end of your response.
+6. Example: "Great, I have booked your appointment for tomorrow for your headache. [BOOK: 2026-05-24T09:00:00.000Z|John Doe|Headache]"
 7. Do NOT output the [BOOK: ...] tag unless the patient has confirmed the time, name, AND reason.
 
 Sending Information to Phone:
