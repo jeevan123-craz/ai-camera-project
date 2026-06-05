@@ -95,7 +95,7 @@ Sending Information to Phone:
 
     try {
         const chat = genAI.chats.create({
-            model: "gemini-2.5-flash-lite",
+            model: "gemini-2.5-flash",
             config: {
                 systemInstruction,
                 temperature: 0.7,
