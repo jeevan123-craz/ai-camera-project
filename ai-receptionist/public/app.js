@@ -374,10 +374,14 @@ async function processUserSpeech(text) {
     stopListening();
     setPhase('thinking');
 
-    const reply = await sendToAI(text);
-    if (reply) addBubble('ai', reply);
+    const result = await sendToAI(text);
+    if (result.reply) addBubble('ai', result.reply);
+    
+    if (result.booked) {
+        playSuccessSound();
+    }
 
-    await speak(reply || "I'm sorry, I couldn't process that. Please try again.");
+    await speak(result.reply || "I'm sorry, I couldn't process that. Please try again.");
 
     // Continue conversation loop
     if (state.callActive) startListening();
@@ -391,45 +395,86 @@ async function sendToAI(message) {
             body:    JSON.stringify({ sessionId: state.sessionId, message, language: state.language }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const { reply } = await res.json();
-        return reply || '';
+        const data = await res.json();
+        return {
+            reply: data.reply || '',
+            booked: !!data.booked
+        };
     } catch (err) {
         console.error('AI request failed:', err);
-        return "I'm sorry, I'm having a connection issue right now. Please try again.";
+        return {
+            reply: "I'm sorry, I'm having a connection issue right now. Please try again.",
+            booked: false
+        };
     }
 }
 
-// ── UI Sounds ────────────────────────────────────
+// ── UI Sounds & Synthesizer ──────────────────────
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playSynthTone(freqs, durations, type = 'sine', gainSequence = [0.15, 0.005]) {
+    try {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        let time = audioCtx.currentTime;
+        freqs.forEach((freq, idx) => {
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, time);
+            
+            const dur = durations[idx] || 0.1;
+            
+            gainNode.gain.setValueAtTime(gainSequence[0], time);
+            gainNode.gain.exponentialRampToValueAtTime(gainSequence[1], time + dur);
+            
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            osc.start(time);
+            osc.stop(time + dur);
+            
+            time += dur * 0.8; // overlap slightly
+        });
+    } catch (e) {
+        console.error("Failed to play synth sound:", e);
+    }
+}
+
 function playClickSound() {
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    const osc = audioCtx.createOscillator();
-    const gainNode = audioCtx.createGain();
-    
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(600, audioCtx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(300, audioCtx.currentTime + 0.1);
-    
-    gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-    
-    osc.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
-    
-    osc.start();
-    osc.stop(audioCtx.currentTime + 0.1);
+    playSynthTone([600, 300], [0.05, 0.05], 'sine', [0.12, 0.005]);
+}
+
+// Success chime: rising major arpeggio (C5 -> E5 -> G5 -> C6)
+function playSuccessSound() {
+    playSynthTone([523.25, 659.25, 783.99, 1046.50], [0.12, 0.12, 0.12, 0.32], 'sine', [0.20, 0.002]);
+}
+
+// Call Started: ascending soft notes
+function playStartCallSound() {
+    playSynthTone([392.00, 523.25], [0.15, 0.25], 'sine', [0.15, 0.005]);
+}
+
+// Call Ended: descending soft notes
+function playEndCallSound() {
+    playSynthTone([523.25, 392.00], [0.15, 0.25], 'sine', [0.15, 0.005]);
+}
+
+// Listening beep: clean Siri-like prompt beep
+function playListeningSound() {
+    playSynthTone([880.00, 1174.66], [0.06, 0.08], 'sine', [0.08, 0.005]);
 }
 
 // ════════════════════════════════════════════════
 // Mic Button
 // ════════════════════════════════════════════════
 async function handleMicClick() {
-    playClickSound();
     if (!state.recognition) return;
 
     if (!state.callActive) {
         // ── START CALL ──
         state.callActive = true;
+        playStartCallSound();
         if (DOM.endCallBtn) DOM.endCallBtn.classList.remove('hidden');
 
         const greeting = "Hello! I am Alex, assistant of Jeevankishore from MedGuard Clinic. How can I help you today?";
@@ -438,6 +483,7 @@ async function handleMicClick() {
         if (state.callActive) startListening();
 
     } else {
+        playClickSound();
         // ── PUSH TO TALK / INTERRUPT ──
         if (state.phase === 'speaking') {
             speechSynthesis.cancel();
@@ -452,6 +498,7 @@ async function handleMicClick() {
 
 function endCall() {
     state.callActive = false;
+    playEndCallSound();
     speechSynthesis.cancel();
     stopListening();
     setPhase('idle');
@@ -482,6 +529,8 @@ function setPhase(phase) {
             DOM.statusDot.classList.add('is-listening');
             DOM.statusLabel.textContent = 'Listening…';
             DOM.waveform.classList.add('active');
+            // Play a soft listening alert beep if call is active
+            if (state.callActive) playListeningSound();
             break;
 
         case 'thinking':
@@ -662,8 +711,12 @@ window.addEventListener('DOMContentLoaded', () => {
             addBubble('user', text);
             
             setPhase('thinking');
-            const reply = await sendToAI(text);
-            if (reply) addBubble('ai', reply);
+            const result = await sendToAI(text);
+            if (result.reply) addBubble('ai', result.reply);
+            
+            if (result.booked) {
+                playSuccessSound();
+            }
             
             setPhase('idle');
         });
