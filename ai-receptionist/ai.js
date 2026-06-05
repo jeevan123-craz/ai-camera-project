@@ -60,7 +60,7 @@ DOCTOR SUGGESTION RULES:
 - ONLY suggest a doctor if the patient explicitly asks for a recommendation or asks "Which doctor should I see?" or "Who treats [symptom]?". 
 - If they just state their symptom and want to book (e.g., "I have a headache, I want to book tomorrow"), DO NOT list doctors. Just proceed with the booking.
 - If they do ask, analyze their symptoms and suggest the single most appropriate doctor from the list above.
-- If the patient asks for a general list of ALL available doctors, you MUST append the exact tag [DOCTORS_CHART] to your response and say something brief like "Here is the list of our available doctors and their specialties:". DO NOT list them in plain text.
+- If the patient asks "who are available", "who is available today", "who's available", "which doctors are available", or generally asks for a list of available doctors/who is working, you MUST treat this as a request for the doctors list. In this case, you MUST append the exact tag [DOCTORS_CHART] to your response and say something brief like "Here is the list of our available doctors and their specialties:". DO NOT list the doctors in plain text in your response, let the chart handle it.
 
 Current Available Appointment Slots (Readable Time -> Exact ISO String):
 ${formattedSlots.length > 0 ? formattedSlots.join('\n') : 'No slots available right now.'}
