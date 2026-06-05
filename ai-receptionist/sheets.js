@@ -42,10 +42,10 @@ async function initSheet() {
         // Add header row
         await sheets.spreadsheets.values.update({
             spreadsheetId,
-            range: 'Appointments!A1:E1',
+            range: 'Appointments!A1:G1',
             valueInputOption: 'USER_ENTERED',
             resource: {
-                values: [['Timestamp', 'Patient Name', 'Appointment Time', 'Mode', 'Reason/Symptoms']]
+                values: [['Timestamp', 'Patient Name', 'Phone Number', 'Appointment Time', 'Mode', 'Doctor Name', 'Reason/Symptoms']]
             }
         });
 
@@ -56,7 +56,7 @@ async function initSheet() {
     }
 }
 
-async function logAppointment(patientName, time, mode, reason) {
+async function logAppointment(patientName, phoneNumber, time, mode, doctorName, reason) {
     if (!spreadsheetId) {
         console.error('Spreadsheet not initialized!');
         return false;
@@ -66,11 +66,11 @@ async function logAppointment(patientName, time, mode, reason) {
         const timestamp = new Date().toISOString();
         await sheets.spreadsheets.values.append({
             spreadsheetId,
-            range: 'Appointments!A:E',
+            range: 'Appointments!A:G',
             valueInputOption: 'USER_ENTERED',
             insertDataOption: 'INSERT_ROWS',
             resource: {
-                values: [[timestamp, patientName, time, mode, reason]]
+                values: [[timestamp, patientName, phoneNumber || 'N/A', time, mode, doctorName || 'Any', reason]]
             }
         });
         console.log(`✅ Logged appointment to Google Sheets for ${patientName}`);
@@ -81,7 +81,35 @@ async function logAppointment(patientName, time, mode, reason) {
     }
 }
 
+async function getPatientHistory(phoneNumber) {
+    if (!spreadsheetId || !phoneNumber) return null;
+    try {
+        const res = await sheets.spreadsheets.values.get({
+            spreadsheetId,
+            range: 'Appointments!A:G',
+        });
+        const rows = res.data.values;
+        if (!rows || rows.length === 0) return null;
+        
+        // Find the most recent appointment matching the phone number (Column C / index 2)
+        for (let i = rows.length - 1; i >= 1; i--) {
+            const row = rows[i];
+            if (row[2] === phoneNumber) {
+                return {
+                    lastVisitDate: row[3],
+                    reason: row[6],
+                    doctor: row[5]
+                };
+            }
+        }
+        return null;
+    } catch (err) {
+        console.error('Error fetching patient history:', err);
+        return null;
+    }
+}
+
 // Auto-initialize on startup
 initSheet();
 
-module.exports = { logAppointment };
+module.exports = { logAppointment, getPatientHistory };

@@ -213,6 +213,7 @@ function speak(text) {
         cleanText = cleanText.replace(/\[BOOK:\s*[^\]]+\]/gi, '');
         cleanText = cleanText.replace(/\[SEND_WHATSAPP:\s*[^\]]+\]/gi, '');
         cleanText = cleanText.replace(/\[TABLE:\s*[^\]]+\]/gi, '');
+        cleanText = cleanText.replace(/\[DOCTORS_CHART\]/gi, '');
         cleanText = cleanText.replace(/\s+/g, ' ').trim();
 
         if (!cleanText) {
@@ -559,7 +560,47 @@ function addBubble(role, text, isInterim = false) {
         }
     }
 
-    const formattedText = esc(cleanTextDisplay).replace(/\n/g, '<br>') + parsedTableHTML;
+    let parsedDoctorsChartHTML = '';
+    const chartRegex = /\[DOCTORS_CHART\]/i;
+    if (cleanTextDisplay.match(chartRegex)) {
+        cleanTextDisplay = cleanTextDisplay.replace(chartRegex, '').trim();
+        parsedDoctorsChartHTML = `
+            <div style="margin-top: 10px; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; overflow: hidden; font-size: 0.85rem; width: 100%;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left; color: #fff;">
+                    <thead style="background: rgba(255,255,255,0.1);">
+                        <tr>
+                            <th style="padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.2);">Doctor Name</th>
+                            <th style="padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.2);">Specialty</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                            <td style="padding: 8px 12px;">Dr. Sarah Jenkins</td>
+                            <td style="padding: 8px 12px; color: #9ca3af;">General Physician</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                            <td style="padding: 8px 12px;">Dr. Michael Chen</td>
+                            <td style="padding: 8px 12px; color: #9ca3af;">Cardiologist</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                            <td style="padding: 8px 12px;">Dr. Emily Rodriguez</td>
+                            <td style="padding: 8px 12px; color: #9ca3af;">Dermatologist</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                            <td style="padding: 8px 12px;">Dr. David Smith</td>
+                            <td style="padding: 8px 12px; color: #9ca3af;">Orthopedist</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 12px;">Dr. Priya Patel</td>
+                            <td style="padding: 8px 12px; color: #9ca3af;">Pediatrician</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    const formattedText = esc(cleanTextDisplay).replace(/\n/g, '<br>') + parsedTableHTML + parsedDoctorsChartHTML;
 
     el.innerHTML = `
         <div class="bubble-label">${role === 'user' ? 'You' : '🤖 MedGuard AI'}</div>

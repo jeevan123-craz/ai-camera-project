@@ -18,7 +18,9 @@ const WebSocket = require('ws');
 const path = require('path');
 const ai = require('./ai');
 const calendar = require('./calendar');
-const sheets = require('./sheets');// WhatsApp is disabled on Render to prevent Out Of Memory crashes on the free tier.
+const sheets = require('./sheets');
+const cronJobs = require('./cronJobs');
+// WhatsApp is disabled on Render to prevent Out Of Memory crashes on the free tier.
 // The browser-based AI voice assistant will still work perfectly.
 const whatsapp = {
     isReady: false,
@@ -117,10 +119,10 @@ app.post('/chat', async (req, res) => {
     addLog('Browser', 'user', message.trim(), sessionId, { ip, userAgent });
 
     try {
-        let aiResponse = await ai.processUserInput(sessionId, message.trim(), language);
+        let aiResponse = await ai.processUserInput(sessionId, message.trim(), language, null);
 
-        // Handle booking tag  [BOOK: YYYY-MM-DDTHH:MM:SS|PatientName|Reason]
-        const bookRegex = /\[BOOK:\s*(.*?)\|(.*?)\|(.*?)\]/i;
+        // Handle booking tag  [BOOK: YYYY-MM-DDTHH:MM:SS|PatientName|Reason|DoctorName]
+        const bookRegex = /\[BOOK:\s*(.*?)\|(.*?)\|(.*?)(?:\|(.*?))?\]/i;
         const match = aiResponse.match(bookRegex);
         let booked = false;
 
@@ -128,14 +130,43 @@ app.post('/chat', async (req, res) => {
             const time        = match[1].trim();
             const patientName = match[2].trim();
             const reason      = match[3].trim();
-            const result = await calendar.bookAppointment(patientName, time, reason);
+            const doctorName  = match[4] ? match[4].trim() : 'Any';
+            const result = await calendar.bookAppointment(patientName, time, reason, doctorName);
             if (result.success) {
-                await sheets.logAppointment(patientName, time, "Browser Chat", reason);
+                await sheets.logAppointment(patientName, "Browser", time, "Browser Chat", doctorName, reason);
                 booked = true;
             }
-            // Strip the tag from the spoken response
             aiResponse = aiResponse.replace(bookRegex, '').trim();
         }
+
+        // Handle cancel tag
+        const cancelRegex = /\[CANCEL:\s*(.*?)\]/i;
+        const cancelMatch = aiResponse.match(cancelRegex);
+        if (cancelMatch) {
+            const patientName = cancelMatch[1].trim();
+            await calendar.cancelAppointment(patientName);
+            aiResponse = aiResponse.replace(cancelRegex, '').trim();
+            booked = true; // trigger dashboard update
+        }
+
+        // Handle reschedule tag [RESCHEDULE: OldTimeISO|NewTimeISO|PatientName|Reason|DoctorName]
+        const rescheduleRegex = /\[RESCHEDULE:\s*(.*?)\|(.*?)\|(.*?)\|(.*?)(?:\|(.*?))?\]/i;
+        const rescheduleMatch = aiResponse.match(rescheduleRegex);
+        if (rescheduleMatch) {
+            const oldTime = rescheduleMatch[1].trim();
+            const newTime = rescheduleMatch[2].trim();
+            const patientName = rescheduleMatch[3].trim();
+            const reason = rescheduleMatch[4].trim();
+            const doctorName = rescheduleMatch[5] ? rescheduleMatch[5].trim() : 'Any';
+            
+            const result = await calendar.rescheduleAppointment(oldTime, newTime, patientName, reason, doctorName);
+            if (result.success) {
+                await sheets.logAppointment(patientName, "Browser", newTime, "Browser Chat Reschedule", doctorName, reason);
+                booked = true;
+            }
+            aiResponse = aiResponse.replace(rescheduleRegex, '').trim();
+        }
+
         // Handle WhatsApp direct message tag [SEND_WHATSAPP: +Number]
         const waRegex = /\[SEND_WHATSAPP:\s*([^\]]+)\]/i;
         const waMatch = aiResponse.match(waRegex);
@@ -178,6 +209,7 @@ app.get('/api/appointments', async (req, res) => {
 
 // Start WhatsApp and Server
 whatsapp.start();
+cronJobs.startCronJobs();
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {

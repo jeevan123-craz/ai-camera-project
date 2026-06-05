@@ -81,14 +81,14 @@ async function getAllAppointments() {
     }
 }
 
-async function bookAppointment(patientName, time, reason) {
+async function bookAppointment(patientName, time, reason, doctorName) {
     try {
         const startTime = new Date(time);
         const endTime = new Date(startTime);
         endTime.setHours(endTime.getHours() + 1); // 1 hour appointment
 
         const event = {
-            summary: `Appointment: ${patientName}`,
+            summary: `Appointment with ${doctorName || 'Doctor'}: ${patientName}`,
             description: reason || 'Consultation',
             start: {
                 dateTime: startTime.toISOString(),
@@ -113,8 +113,56 @@ async function bookAppointment(patientName, time, reason) {
     }
 }
 
+async function cancelAppointment(patientName) {
+    try {
+        const events = await getAllAppointments();
+        const eventToCancel = events.find(e => e.patientName.toLowerCase() === patientName.toLowerCase());
+        if (!eventToCancel) return { success: false, message: 'Appointment not found.' };
+
+        await calendar.events.delete({
+            calendarId: CALENDAR_ID,
+            eventId: eventToCancel.id,
+        });
+        console.log(`✅ Cancelled appointment for ${patientName}`);
+        return { success: true };
+    } catch (err) {
+        console.error('Error cancelling appointment:', err);
+        return { success: false, message: 'Google Calendar API error.' };
+    }
+}
+
+async function rescheduleAppointment(oldTime, newTime, patientName, reason, doctorName) {
+    const cancelRes = await cancelAppointment(patientName);
+    if (!cancelRes.success) return cancelRes;
+    return await bookAppointment(patientName, newTime, reason, doctorName);
+}
+
+async function getEventsInWindow(hoursFromNowStart, hoursFromNowEnd) {
+    try {
+        const timeMin = new Date();
+        timeMin.setHours(timeMin.getHours() + hoursFromNowStart);
+        const timeMax = new Date();
+        timeMax.setHours(timeMax.getHours() + hoursFromNowEnd);
+
+        const res = await calendar.events.list({
+            calendarId: CALENDAR_ID,
+            timeMin: timeMin.toISOString(),
+            timeMax: timeMax.toISOString(),
+            singleEvents: true,
+            orderBy: 'startTime',
+        });
+        return res.data.items;
+    } catch (err) {
+        console.error('Error fetching window events:', err);
+        return [];
+    }
+}
+
 module.exports = {
     getAvailableSlots,
     getAllAppointments,
-    bookAppointment
+    bookAppointment,
+    cancelAppointment,
+    rescheduleAppointment,
+    getEventsInWindow
 };

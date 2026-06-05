@@ -78,24 +78,56 @@ class WhatsAppBot extends EventEmitter {
                 // Log user message
                 this.emit('log', { source: 'WhatsApp', role: 'user', text: text, phone: phoneNumber });
 
-                // Send to Gemini
-                let aiResponse = await ai.processUserInput(phoneNumber, text);
+                // Fetch patient history before processing
+                const patientHistory = await sheets.getPatientHistory(phoneNumber);
 
-                // Check for booking tag [BOOK: YYYY-MM-DDTHH:MM:SS|PatientName|Reason]
-                const bookRegex = /\[BOOK:\s*(.*?)\|(.*?)\|(.*?)\]/i;
+                // Send to Gemini
+                let aiResponse = await ai.processUserInput(phoneNumber, text, 'en-US', patientHistory);
+
+                // Check for booking tag [BOOK: YYYY-MM-DDTHH:MM:SS|PatientName|Reason|DoctorName]
+                const bookRegex = /\[BOOK:\s*(.*?)\|(.*?)\|(.*?)(?:\|(.*?))?\]/i;
                 const match = aiResponse.match(bookRegex);
 
                 if (match) {
                     const time = match[1].trim();
                     const patientName = match[2].trim();
                     const reason = match[3].trim();
+                    const doctorName = match[4] ? match[4].trim() : 'Any';
 
-                    const result = await calendar.bookAppointment(patientName, time, reason);
+                    const result = await calendar.bookAppointment(patientName, time, reason, doctorName);
                     if (result.success) {
-                        await sheets.logAppointment(patientName, time, "WhatsApp", reason);
+                        await sheets.logAppointment(patientName, phoneNumber, time, "WhatsApp", doctorName, reason);
                         this.emit('booking_updated');
                     }
                     aiResponse = aiResponse.replace(bookRegex, '').trim();
+                }
+
+                // Handle cancel tag
+                const cancelRegex = /\[CANCEL:\s*(.*?)\]/i;
+                const cancelMatch = aiResponse.match(cancelRegex);
+                if (cancelMatch) {
+                    const patientName = cancelMatch[1].trim();
+                    await calendar.cancelAppointment(patientName);
+                    aiResponse = aiResponse.replace(cancelRegex, '').trim();
+                    this.emit('booking_updated');
+                }
+
+                // Handle reschedule tag [RESCHEDULE: OldTimeISO|NewTimeISO|PatientName|Reason|DoctorName]
+                const rescheduleRegex = /\[RESCHEDULE:\s*(.*?)\|(.*?)\|(.*?)\|(.*?)(?:\|(.*?))?\]/i;
+                const rescheduleMatch = aiResponse.match(rescheduleRegex);
+                if (rescheduleMatch) {
+                    const oldTime = rescheduleMatch[1].trim();
+                    const newTime = rescheduleMatch[2].trim();
+                    const patientName = rescheduleMatch[3].trim();
+                    const reason = rescheduleMatch[4].trim();
+                    const doctorName = rescheduleMatch[5] ? rescheduleMatch[5].trim() : 'Any';
+                    
+                    const result = await calendar.rescheduleAppointment(oldTime, newTime, patientName, reason, doctorName);
+                    if (result.success) {
+                        await sheets.logAppointment(patientName, phoneNumber, newTime, "WhatsApp Reschedule", doctorName, reason);
+                        this.emit('booking_updated');
+                    }
+                    aiResponse = aiResponse.replace(rescheduleRegex, '').trim();
                 }
 
                 // Handle WhatsApp direct message tag [SEND_WHATSAPP: +Number]
