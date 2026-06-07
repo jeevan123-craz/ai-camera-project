@@ -6,6 +6,50 @@
     <title>MedGuard Admin Dashboard</title>
     <link rel="stylesheet" href="admin.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ── Live Logs ── */
+        .logs-section { margin-top: 2rem; }
+        .logs-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; }
+        .logs-title { font-size:1rem; font-weight:600; color:#e2e8f0; }
+        .logs-badge { font-size:0.75rem; background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); color:#818cf8; padding:0.2rem 0.65rem; border-radius:99px; font-weight:600; }
+        .log-filter-row { display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:1rem; }
+        .log-filter-btn { padding:0.35rem 0.9rem; border-radius:99px; font-size:0.76rem; font-weight:600; cursor:pointer; border:1px solid rgba(255,255,255,0.12); background:transparent; color:#94a3b8; transition:all 0.2s; font-family:'Outfit',sans-serif; }
+        .log-filter-btn.active { background:rgba(99,102,241,0.2); border-color:rgba(99,102,241,0.45); color:#818cf8; }
+        .log-filter-btn:hover:not(.active) { border-color:rgba(255,255,255,0.25); color:#e2e8f0; }
+        .logs-box { background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.07); border-radius:12px; padding:1rem; max-height:380px; overflow-y:auto; display:flex; flex-direction:column; gap:0.5rem; }
+        .logs-box::-webkit-scrollbar { width:4px; }
+        .logs-box::-webkit-scrollbar-track { background:transparent; }
+        .logs-box::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:4px; }
+
+        /* Log Entry */
+        .log-entry { padding:0.7rem 1rem; border-radius:8px; border:1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.025); font-size:0.83rem; line-height:1.5; animation:fadeIn 0.3s ease; }
+        .log-entry.blinkit { border-left:3px solid #fb923c; background:rgba(251,146,60,0.06); border-color:rgba(251,146,60,0.2); }
+        .log-entry.blinkit:hover { background:rgba(251,146,60,0.1); }
+        .log-entry.user { border-left:3px solid #6366f1; }
+        .log-entry.ai { border-left:3px solid #10b981; }
+        .log-entry.system { border-left:3px solid #94a3b8; }
+        .log-meta { display:flex; gap:0.6rem; align-items:center; margin-bottom:0.3rem; flex-wrap:wrap; }
+        .log-source { font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; padding:0.15rem 0.5rem; border-radius:4px; }
+        .log-source.blinkit-src { background:rgba(251,146,60,0.15); color:#fb923c; }
+        .log-source.user-src { background:rgba(99,102,241,0.15); color:#818cf8; }
+        .log-source.ai-src { background:rgba(16,185,129,0.15); color:#10b981; }
+        .log-source.system-src { background:rgba(148,163,184,0.15); color:#94a3b8; }
+        .log-time { font-size:0.72rem; color:#4b5563; margin-left:auto; }
+        .log-text { color:#cbd5e1; }
+        .log-text strong { color:#f1f5f9; }
+
+        /* Blinkit order detail box */
+        .blinkit-detail { margin-top:0.5rem; background:rgba(0,0,0,0.2); border:1px solid rgba(251,146,60,0.15); border-radius:6px; padding:0.6rem 0.85rem; font-size:0.78rem; color:#94a3b8; line-height:1.8; }
+        .blinkit-detail span { color:#fb923c; font-weight:600; }
+        .blinkit-badge { display:inline-flex; align-items:center; gap:0.3rem; background:rgba(251,146,60,0.12); border:1px solid rgba(251,146,60,0.3); color:#fb923c; font-size:0.72rem; font-weight:700; padding:0.2rem 0.6rem; border-radius:99px; }
+
+        @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+
+        /* WS Status dot */
+        .ws-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#ef4444; margin-right:6px; transition:background 0.3s; }
+        .ws-dot.online { background:#10b981; box-shadow:0 0 6px rgba(16,185,129,0.4); animation:wsPulse 2s ease-in-out infinite; }
+        @keyframes wsPulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+    </style>
 </head>
 <body>
     <div class="dashboard-container">
@@ -22,6 +66,9 @@
                 <a href="#" class="nav-item active">
                     <span class="icon">📊</span> Dashboard
                 </a>
+                <a href="/prescription.html" class="nav-item">
+                    <span class="icon">📋</span> Prescriptions
+                </a>
                 <a href="#" class="nav-item">
                     <span class="icon">⚙️</span> Settings
                 </a>
@@ -30,7 +77,7 @@
                 <h4>System Status</h4>
                 <div class="status-indicator">
                     <div class="dot pulse"></div>
-                    <span>Online & Auto-Calling</span>
+                    <span id="wsStatusLabel">Connecting…</span>
                 </div>
             </div>
         </aside>
@@ -40,7 +87,7 @@
             <header>
                 <div>
                     <h1>Appointments Dashboard</h1>
-                    <p>Live sync with Google Calendar & Sheets</p>
+                    <p>Live sync with Google Calendar &amp; Sheets &nbsp;<span class="ws-dot" id="wsDot"></span></p>
                 </div>
                 <button class="refresh-btn" onclick="fetchAppointments()">
                     🔄 Refresh
@@ -60,6 +107,10 @@
                     <h3>Upcoming</h3>
                     <div class="stat-value" id="upcoming-bookings">0</div>
                 </div>
+                <div class="stat-card" style="border-left:3px solid #fb923c;">
+                    <h3>Blinkit Orders</h3>
+                    <div class="stat-value" id="blinkit-count" style="color:#fb923c;">0</div>
+                </div>
             </div>
 
             <div class="table-container">
@@ -67,7 +118,7 @@
                     <thead>
                         <tr>
                             <th>Patient Name</th>
-                            <th>Date & Time</th>
+                            <th>Date &amp; Time</th>
                             <th>Reason / Symptoms</th>
                             <th>Status</th>
                         </tr>
@@ -79,9 +130,30 @@
                     </tbody>
                 </table>
             </div>
+
+            <!-- ══ LIVE LOGS SECTION ══ -->
+            <div class="logs-section">
+                <div class="logs-header">
+                    <div class="logs-title">📡 Live Activity Logs</div>
+                    <span class="logs-badge" id="logsCountBadge">0</span>
+                </div>
+
+                <div class="log-filter-row">
+                    <button class="log-filter-btn active" data-filter="all" onclick="setLogFilter('all', this)">All</button>
+                    <button class="log-filter-btn" data-filter="blinkit" onclick="setLogFilter('blinkit', this)">🛒 Blinkit Orders</button>
+                    <button class="log-filter-btn" data-filter="user" onclick="setLogFilter('user', this)">👤 Patients</button>
+                    <button class="log-filter-btn" data-filter="ai" onclick="setLogFilter('ai', this)">🤖 AI</button>
+                    <button class="log-filter-btn" data-filter="whatsapp" onclick="setLogFilter('whatsapp', this)">💬 WhatsApp</button>
+                </div>
+
+                <div class="logs-box" id="logsBox">
+                    <div style="text-align:center; color:#4b5563; font-size:0.85rem; padding:2rem;">Waiting for activity…</div>
+                </div>
+            </div>
+
         </main>
     </div>
-    
+
     <script src="admin.js"></script>
 </body>
 </html>

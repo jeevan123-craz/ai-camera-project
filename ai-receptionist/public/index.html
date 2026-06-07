@@ -30,6 +30,25 @@
                     <span>TA</span>
                 </label>
             </div>
+            <!-- ══ VIEW MY PRESCRIPTION BUTTON ══ -->
+            <a href="/prescription.html" style="
+                display: inline-flex;
+                align-items: center;
+                gap: 0.4rem;
+                padding: 0.4rem 1rem;
+                background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(67,56,202,0.1));
+                border: 1px solid rgba(99,102,241,0.35);
+                border-radius: 99px;
+                color: var(--indigo-light, #818cf8);
+                font-size: 0.82rem;
+                font-weight: 600;
+                text-decoration: none;
+                transition: background 0.2s, border-color 0.2s, transform 0.15s;
+                white-space: nowrap;
+            " onmouseover="this.style.background='linear-gradient(135deg,rgba(99,102,241,0.25),rgba(67,56,202,0.18))';this.style.borderColor='rgba(99,102,241,0.6)';this.style.transform='translateY(-1px)'"
+               onmouseout="this.style.background='linear-gradient(135deg,rgba(99,102,241,0.15),rgba(67,56,202,0.1))';this.style.borderColor='rgba(99,102,241,0.35)';this.style.transform='translateY(0)'">
+                📋 View My Prescription
+            </a>
             <div class="model-badge">Gemini 2.5 Flash</div>
         </div>
     </header>
@@ -53,12 +72,10 @@
                     <div class="mic-ring mic-ring-outer"></div>
                     <div class="mic-ring mic-ring-middle"></div>
                     <button class="mic-btn" id="micBtn" aria-label="Start voice call">
-                        <!-- Mic icon -->
                         <svg id="iconMic" class="btn-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4z"/>
                             <path d="M19 10a1 1 0 0 0-2 0 5 5 0 0 1-10 0 1 1 0 0 0-2 0 7 7 0 0 0 6 6.92V19H9a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2h-2v-2.08A7 7 0 0 0 19 10z"/>
                         </svg>
-                        <!-- End icon -->
                         <svg id="iconEnd" class="btn-icon hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
                             <line x1="18" y1="6" x2="6" y2="18"/>
                             <line x1="6" y1="6" x2="18" y2="18"/>
@@ -83,7 +100,7 @@
                     <span class="status-label" id="statusLabel">Click mic to start</span>
                 </div>
 
-                <!-- Waveform (visible while listening) -->
+                <!-- Waveform -->
                 <div class="waveform" id="waveform" aria-hidden="true">
                     <span class="wave-bar"></span><span class="wave-bar"></span>
                     <span class="wave-bar"></span><span class="wave-bar"></span>
@@ -95,6 +112,31 @@
                 <div class="browser-warning hidden" id="browserWarning">
                     ⚠️ Speech recognition requires <strong>Chrome</strong> or <strong>Edge</strong>.
                 </div>
+
+                <!-- ══ PRESCRIPTION SHORTCUT BANNER ══ -->
+                <a href="/prescription.html" style="
+                    display: flex;
+                    align-items: center;
+                    gap: 0.6rem;
+                    padding: 0.75rem 1rem;
+                    background: rgba(99,102,241,0.06);
+                    border: 1px dashed rgba(99,102,241,0.3);
+                    border-radius: 10px;
+                    text-decoration: none;
+                    color: #a5b4fc;
+                    font-size: 0.82rem;
+                    font-weight: 500;
+                    margin-top: 0.5rem;
+                    transition: background 0.2s, border-color 0.2s;
+                " onmouseover="this.style.background='rgba(99,102,241,0.12)';this.style.borderColor='rgba(99,102,241,0.5)'"
+                   onmouseout="this.style.background='rgba(99,102,241,0.06)';this.style.borderColor='rgba(99,102,241,0.3)'">
+                    <span style="font-size:1.2rem;">📋</span>
+                    <div>
+                        <div style="font-weight:600; color:#c7d2fe;">View My Prescription</div>
+                        <div style="font-size:0.75rem; color:#6b7280; margin-top:0.1rem;">Download & order medicines via Blinkit</div>
+                    </div>
+                    <span style="margin-left:auto; font-size:0.9rem;">→</span>
+                </a>
             </div>
 
             <!-- Right: Transcript -->
