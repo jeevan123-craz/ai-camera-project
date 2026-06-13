@@ -16,10 +16,21 @@ const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
+const fs = require('fs');
+const os = require('os');
+const { EdgeTTS } = require('node-edge-tts');
+const cookieParser = require('cookie-parser');
+const rateLimit = require('express-rate-limit');
 const ai = require('./ai');
 const calendar = require('./calendar');
 const sheets = require('./sheets');
 const cronJobs = require('./cronJobs');
+
+// Setup Prescriptions file
+const PRESCRIPTIONS_FILE = path.join(__dirname, 'prescriptions.json');
+if (!fs.existsSync(PRESCRIPTIONS_FILE)) {
+    fs.writeFileSync(PRESCRIPTIONS_FILE, JSON.stringify([]));
+}
 
 // WhatsApp is disabled on Render to prevent Out Of Memory crashes on the free tier.
 const whatsapp = {
@@ -36,9 +47,61 @@ const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
 app.use(express.urlencoded({ extended: false }));
-app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
+app.use(cookieParser());
 app.set('trust proxy', true);
+
+// ── Rate Limiting for Chat ──
+const chatLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 10, // Limit each IP to 10 requests per minute
+    message: { error: 'Too many requests from this IP, please try again after a minute' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// ── Cookie Auth for Admin ──
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'medguard123';
+const AUTH_TOKEN = 'admin_secure_token_123'; // In prod, use JWT or proper sessions
+
+const adminAuth = (req, res, next) => {
+    if (req.cookies && req.cookies.admin_token === AUTH_TOKEN) {
+        next();
+    } else {
+        // If it's an API request, return 401
+        if (req.path.startsWith('/api/')) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        // Otherwise redirect to login
+        res.redirect('/login.html');
+    }
+};
+
+// Protect admin.html specifically before serving static files
+app.get('/admin.html', adminAuth, (req, res, next) => {
+    next();
+});
+
+// Login Endpoint
+app.post('/api/login', (req, res) => {
+    const { username, password } = req.body;
+    if (username === 'admin' && password === ADMIN_PASSWORD) {
+        res.cookie('admin_token', AUTH_TOKEN, { 
+            httpOnly: true, 
+            maxAge: 24 * 60 * 60 * 1000 // 1 day 
+        });
+        return res.json({ success: true });
+    }
+    res.status(401).json({ error: 'Invalid username or password' });
+});
+
+app.post('/api/logout', (req, res) => {
+    res.clearCookie('admin_token');
+    res.json({ success: true });
+});
+
+// Serve static files
+app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Live Logs Array ──
 const callLogs = [];
@@ -95,7 +158,7 @@ app.get('/api/whatsapp-status', (req, res) => {
 });
 
 // ── Browser Call Endpoint ──────────────────────────────────────────────────
-app.post('/chat', async (req, res) => {
+app.post('/chat', chatLimiter, async (req, res) => {
     const { sessionId, message, language } = req.body;
 
     if (!sessionId || !message || !message.trim()) {
@@ -162,6 +225,15 @@ app.post('/chat', async (req, res) => {
             console.log(`[INFO] Sent WhatsApp clinic details to ${phoneNumber}`);
         }
 
+        const codeRedRegex = /\[CODE_RED:\s*(.*?)\]/i;
+        const codeRedMatch = aiResponse.match(codeRedRegex);
+        if (codeRedMatch) {
+            const reason = codeRedMatch[1].trim();
+            aiResponse = aiResponse.replace(codeRedRegex, '').trim();
+            addLog('System', 'emergency', `CODE RED INITIATED: ${reason}`, sessionId, { type: 'code_red', reason });
+            console.log(`[EMERGENCY] Code Red triggered for reason: ${reason}`);
+        }
+
         addLog('Browser', 'ai', aiResponse, sessionId);
         broadcastDashboardUpdate();
         res.json({ reply: aiResponse, booked });
@@ -172,8 +244,42 @@ app.post('/chat', async (req, res) => {
     }
 });
 
+// ── Free Neural TTS Endpoint ───────────────────────────────────────────────
+app.post('/api/tts', async (req, res) => {
+    try {
+        const { text, lang } = req.body;
+        if (!text) return res.status(400).json({ error: 'Text is required' });
+
+        const voice = lang === 'ta-IN' ? 'ta-IN-PallaviNeural' : 'en-US-JennyNeural';
+        const tts = new EdgeTTS({
+            voice: voice,
+            lang: lang || 'en-US',
+            outputFormat: 'audio-24khz-48kbitrate-mono-mp3'
+        });
+
+        const tmpFilePath = path.join(os.tmpdir(), `tts-${Date.now()}-${Math.random().toString(36).slice(2)}.mp3`);
+        
+        await tts.ttsPromise(text, tmpFilePath);
+        
+        const stat = fs.statSync(tmpFilePath);
+        res.writeHead(200, {
+            'Content-Type': 'audio/mpeg',
+            'Content-Length': stat.size
+        });
+        
+        const readStream = fs.createReadStream(tmpFilePath);
+        readStream.pipe(res);
+        readStream.on('end', () => {
+            fs.unlinkSync(tmpFilePath); // cleanup
+        });
+    } catch (err) {
+        console.error('TTS Error:', err);
+        res.status(500).json({ error: 'TTS generation failed' });
+    }
+});
+
 // ── Admin Dashboard Endpoint ───────────────────────────────────────────────
-app.get('/api/appointments', async (req, res) => {
+app.get('/api/appointments', adminAuth, async (req, res) => {
     try {
         const appointments = await calendar.getAllAppointments();
         res.json(appointments);
@@ -184,10 +290,40 @@ app.get('/api/appointments', async (req, res) => {
 });
 
 // ════════════════════════════════════════════════
-// ── PRESCRIPTION ENDPOINT ─────────────────────
+// ── DOCTOR PRESCRIPTION PUBLISH ENDPOINT (ADMIN)
+// POST /api/doctor/prescription
+// Saves a real prescription written by the doctor
+// ════════════════════════════════════════════════
+app.post('/api/doctor/prescription', adminAuth, (req, res) => {
+    try {
+        const newPrescription = req.body;
+        newPrescription.prescribedAt = new Date().toISOString();
+        
+        let prescriptions = [];
+        if (fs.existsSync(PRESCRIPTIONS_FILE)) {
+            prescriptions = JSON.parse(fs.readFileSync(PRESCRIPTIONS_FILE, 'utf-8'));
+        }
+        
+        // Remove older prescription for this patient/date if it exists to overwrite
+        prescriptions = prescriptions.filter(p => !(p.patientName.toLowerCase() === newPrescription.patientName.toLowerCase() && p.appointmentDate === newPrescription.appointmentDate));
+        
+        prescriptions.push(newPrescription);
+        fs.writeFileSync(PRESCRIPTIONS_FILE, JSON.stringify(prescriptions, null, 2));
+        
+        // Log to dashboard
+        addLog('Admin', 'doctor', `Published prescription for ${newPrescription.patientName}`, 'Dashboard', { type: 'prescription_published', patientName: newPrescription.patientName });
+        
+        res.json({ success: true, message: 'Prescription saved successfully.' });
+    } catch (err) {
+        console.error('Error saving prescription:', err);
+        res.status(500).json({ error: 'Failed to save prescription.' });
+    }
+});
+
+// ════════════════════════════════════════════════
+// ── PRESCRIPTION RETRIEVAL ENDPOINT (PATIENT)
 // GET /api/prescription/:patientName
-// Looks up the patient's most recent appointment and
-// returns a mocked prescription generated by the doctor.
+// Retrieves a real prescription written by the doctor.
 // ════════════════════════════════════════════════
 app.get('/api/prescription/:patientName', async (req, res) => {
     const rawName = req.params.patientName.trim();
@@ -197,114 +333,32 @@ app.get('/api/prescription/:patientName', async (req, res) => {
     }
 
     try {
-        // Look up appointments for this patient
-        const allAppointments = await calendar.getAllAppointments();
         const patientName = rawName.toLowerCase();
+        let prescriptions = [];
+        if (fs.existsSync(PRESCRIPTIONS_FILE)) {
+            prescriptions = JSON.parse(fs.readFileSync(PRESCRIPTIONS_FILE, 'utf-8'));
+        }
 
-        // Find the most recent appointment for this patient
-        const match = allAppointments
-            .filter(a => (a.patientName || '').toLowerCase().includes(patientName))
-            .sort((a, b) => new Date(b.time) - new Date(a.time))[0];
+        // Find the most recent prescription for this patient
+        const match = prescriptions
+            .filter(p => (p.patientName || '').toLowerCase().includes(patientName))
+            .sort((a, b) => new Date(b.prescribedAt) - new Date(a.prescribedAt))[0];
 
         if (!match) {
+            // Patient has an appointment but doctor hasn't written a prescription yet
             return res.status(404).json({
-                error: `No appointment found for "${rawName}". Please check your name matches the one used when booking.`
+                error: `Your doctor has not published a prescription for "${rawName}" yet. Please check back later or contact the clinic.`
             });
         }
 
-        // ── Mocked Prescription ──
-        // In a real system, a doctor would fill this in after the consultation.
-        // Here we generate a realistic mock based on the appointment reason.
-        const prescription = generateMockedPrescription(match);
-        console.log(`[Prescription] Retrieved for: ${match.patientName}`);
-        res.json(prescription);
+        console.log(`[Prescription] Retrieved real prescription for: ${match.patientName}`);
+        res.json(match);
 
     } catch (err) {
         console.error('Error in /api/prescription:', err);
         res.status(500).json({ error: 'Failed to fetch prescription. Please try again.' });
     }
 });
-
-// ── Helper: Generate a realistic mocked prescription ──
-function generateMockedPrescription(appointment) {
-    const reason = (appointment.reason || '').toLowerCase();
-
-    // Pick medicines based on appointment reason keywords
-    let medicines = [];
-    let diagnosis = 'General Consultation';
-    let doctorNotes = 'Please complete the full course of prescribed medicines. Stay hydrated and get adequate rest. Follow up in 7 days if symptoms persist.';
-
-    if (reason.includes('fever') || reason.includes('cold') || reason.includes('flu')) {
-        diagnosis = 'Viral Fever / Upper Respiratory Tract Infection';
-        medicines = [
-            { name: 'Paracetamol 500mg',      dosage: '1 tab',   duration: '5 days',  instructions: 'After meals, 3 times/day' },
-            { name: 'Cetirizine 10mg',         dosage: '1 tab',   duration: '3 days',  instructions: 'At bedtime' },
-            { name: 'Vitamin C 500mg',         dosage: '1 tab',   duration: '7 days',  instructions: 'After breakfast' },
-            { name: 'Azithromycin 500mg',      dosage: '1 tab',   duration: '3 days',  instructions: 'Once daily, after food' },
-        ];
-        doctorNotes = 'Drink 2–3 litres of water daily. Avoid cold beverages and spicy food. Rest for at least 2 days. Visit emergency if temperature exceeds 103°F.';
-    } else if (reason.includes('headache') || reason.includes('migraine')) {
-        diagnosis = 'Tension Headache / Migraine';
-        medicines = [
-            { name: 'Ibuprofen 400mg',         dosage: '1 tab',   duration: '3 days',  instructions: 'After meals, twice daily' },
-            { name: 'Sumatriptan 50mg',        dosage: '1 tab',   duration: 'As needed', instructions: 'At onset of migraine' },
-            { name: 'Magnesium Glycinate',     dosage: '400mg',   duration: '30 days', instructions: 'Before bedtime' },
-        ];
-        doctorNotes = 'Avoid screen time and bright lights during episodes. Keep a headache diary. Ensure regular sleep schedule. Avoid triggers like caffeine and stress.';
-    } else if (reason.includes('cough') || reason.includes('throat')) {
-        diagnosis = 'Acute Pharyngitis / Cough';
-        medicines = [
-            { name: 'Amoxicillin 500mg',       dosage: '1 cap',   duration: '5 days',  instructions: 'Three times daily, after food' },
-            { name: 'Bromhexine 8mg',          dosage: '1 tab',   duration: '5 days',  instructions: 'Twice daily, after meals' },
-            { name: 'Strepsils Lozenges',      dosage: '1 lozenge', duration: '5 days', instructions: 'Every 3 hours, max 6/day' },
-        ];
-        doctorNotes = 'Gargle with warm salt water 3 times daily. Avoid cold drinks. Steam inhalation twice daily. Avoid dusty environments.';
-    } else if (reason.includes('bp') || reason.includes('blood pressure') || reason.includes('hypertension')) {
-        diagnosis = 'Hypertension (High Blood Pressure)';
-        medicines = [
-            { name: 'Amlodipine 5mg',          dosage: '1 tab',   duration: '30 days', instructions: 'Once daily, morning' },
-            { name: 'Telmisartan 40mg',        dosage: '1 tab',   duration: '30 days', instructions: 'Once daily, morning' },
-            { name: 'Aspirin 75mg',            dosage: '1 tab',   duration: '30 days', instructions: 'Once daily, after breakfast' },
-        ];
-        doctorNotes = 'Monitor blood pressure daily and maintain a log. Reduce salt intake. Exercise 30 minutes daily. Avoid stress and smoking. Return in 1 month for review.';
-    } else if (reason.includes('diabetes') || reason.includes('sugar')) {
-        diagnosis = 'Type 2 Diabetes Mellitus';
-        medicines = [
-            { name: 'Metformin 500mg',         dosage: '1 tab',   duration: '30 days', instructions: 'Twice daily, after meals' },
-            { name: 'Glimepiride 2mg',         dosage: '1 tab',   duration: '30 days', instructions: 'Before breakfast' },
-            { name: 'Multivitamin Complex',    dosage: '1 tab',   duration: '30 days', instructions: 'After breakfast' },
-        ];
-        doctorNotes = 'Monitor fasting and post-meal blood sugar daily. Follow a low-carb diet. Exercise daily. Avoid sweets and refined sugars. Return in 1 month with sugar records.';
-    } else if (reason.includes('back') || reason.includes('joint') || reason.includes('knee') || reason.includes('pain')) {
-        diagnosis = 'Musculoskeletal Pain';
-        medicines = [
-            { name: 'Diclofenac 50mg',         dosage: '1 tab',   duration: '5 days',  instructions: 'After meals, twice daily' },
-            { name: 'Thiocolchicoside 4mg',    dosage: '1 tab',   duration: '5 days',  instructions: 'Twice daily' },
-            { name: 'Calcium + Vit D3',        dosage: '1 tab',   duration: '30 days', instructions: 'After dinner' },
-            { name: 'Omeprazole 20mg',         dosage: '1 cap',   duration: '5 days',  instructions: 'Before breakfast (stomach protection)' },
-        ];
-        doctorNotes = 'Apply warm compress for 15 minutes twice daily. Avoid lifting heavy objects. Physiotherapy recommended. Avoid sitting for prolonged periods.';
-    } else {
-        // Default general consultation prescription
-        diagnosis = 'General Health Checkup';
-        medicines = [
-            { name: 'Multivitamin B-Complex',  dosage: '1 tab',   duration: '30 days', instructions: 'After breakfast' },
-            { name: 'Vitamin D3 60000 IU',     dosage: '1 cap',   duration: 'Weekly ×4', instructions: 'Once a week, after meal' },
-            { name: 'Omega-3 Fatty Acids',     dosage: '1 cap',   duration: '30 days', instructions: 'After dinner' },
-        ];
-        doctorNotes = 'Maintain a balanced diet with adequate protein, fruits, and vegetables. Exercise regularly. Drink 2–3 litres of water daily. Follow up if any new symptoms arise.';
-    }
-
-    return {
-        patientName:     appointment.patientName,
-        appointmentDate: appointment.time,
-        doctorName:      appointment.doctorName || 'Dr. Sarah Jenkins',
-        diagnosis,
-        medicines,
-        doctorNotes,
-        prescribedAt:    new Date().toISOString(),
-    };
-}
 
 // ════════════════════════════════════════════════
 // ── BLINKIT ORDER ENDPOINT ────────────────────

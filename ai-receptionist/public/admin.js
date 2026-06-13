@@ -18,6 +18,10 @@ async function fetchAppointments() {
         tbody.innerHTML = '<tr><td colspan="4" class="loading-state">Syncing with Google Calendar...</td></tr>';
 
         const response = await fetch('/api/appointments');
+        if (response.status === 401) {
+            window.location.href = '/login.html';
+            return;
+        }
         const appointments = await response.json();
 
         // Stats
@@ -43,7 +47,10 @@ async function fetchAppointments() {
                 <td><strong>${esc(apt.patientName)}</strong></td>
                 <td>${dateStr} <br><span style="color:#94a3b8;font-size:0.85rem">${timeStr}</span></td>
                 <td>${esc(apt.reason)}</td>
-                <td><span class="status-badge">Confirmed</span></td>
+                <td>
+                    <span class="status-badge">Confirmed</span>
+                    <button class="btn-rx" onclick="openRxModal('${esc(apt.patientName)}', '${esc(apt.time)}')">Write Rx</button>
+                </td>
             `;
             tbody.appendChild(tr);
         });
@@ -158,17 +165,19 @@ function renderLogs() {
 function buildLogEntry(log) {
     const time = new Date(log.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const isBlinkit = log.source === 'Blinkit';
+    const isCodeRed = log.extra?.type === 'code_red';
 
     // Source badge
     let srcClass = 'system-src';
     let srcLabel = log.source || 'System';
-    if (isBlinkit)                        { srcClass = 'blinkit-src'; srcLabel = '🛒 Blinkit'; }
+    if (isCodeRed)                        { srcClass = 'code-red-src'; srcLabel = '🚨 EMERGENCY'; }
+    else if (isBlinkit)                   { srcClass = 'blinkit-src'; srcLabel = '🛒 Blinkit'; }
     else if (log.role === 'user')         { srcClass = 'user-src';    srcLabel = '👤 ' + (log.source || 'Patient'); }
     else if (log.role === 'ai')           { srcClass = 'ai-src';      srcLabel = '🤖 AI'; }
     else if (log.source === 'WhatsApp')   { srcClass = 'user-src';    srcLabel = '💬 WhatsApp'; }
 
     // Role icon
-    const icon = log.role === 'user' ? '👤' : log.role === 'ai' ? '🤖' : isBlinkit ? '🛒' : '⚙️';
+    const icon = log.role === 'emergency' ? '🚨' : log.role === 'user' ? '👤' : log.role === 'ai' ? '🤖' : isBlinkit ? '🛒' : '⚙️';
 
     // Blinkit detail panel
     let blinkitDetail = '';
@@ -188,7 +197,8 @@ function buildLogEntry(log) {
         ? `<div style="font-size:0.65rem;color:#4b5563;margin-top:0.25rem;">IP: ${esc(log.extra.ip)}</div>`
         : '';
 
-    const entryClass = isBlinkit ? 'log-entry blinkit'
+    const entryClass = isCodeRed ? 'log-entry code-red'
+        : isBlinkit ? 'log-entry blinkit'
         : log.role === 'user'    ? 'log-entry user'
         : log.role === 'ai'      ? 'log-entry ai'
         : 'log-entry system';
@@ -214,6 +224,82 @@ function esc(str) {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+}
+
+// ════════════════════════════════════════════════
+// Prescription Modal Logic
+// ════════════════════════════════════════════════
+function openRxModal(patientName, appointmentDate) {
+    document.getElementById('rxPatientName').value = patientName;
+    document.getElementById('rxPatientDisplay').value = patientName;
+    document.getElementById('rxAppointmentDate').value = appointmentDate;
+    document.getElementById('rxDiagnosis').value = '';
+    document.getElementById('rxMedicines').value = '';
+    document.getElementById('rxNotes').value = '';
+    document.getElementById('rxModal').classList.add('active');
+}
+
+function closeRxModal() {
+    document.getElementById('rxModal').classList.remove('active');
+}
+
+async function submitPrescription(e) {
+    e.preventDefault();
+    const btn = document.getElementById('rxSubmitBtn');
+    btn.disabled = true;
+    btn.textContent = 'Publishing...';
+
+    const patientName = document.getElementById('rxPatientName').value;
+    const appointmentDate = document.getElementById('rxAppointmentDate').value;
+    const diagnosis = document.getElementById('rxDiagnosis').value;
+    const notes = document.getElementById('rxNotes').value;
+    
+    // Parse medicines from textarea
+    const medLines = document.getElementById('rxMedicines').value.split('\n').filter(l => l.trim());
+    const medicines = medLines.map(line => {
+        const parts = line.split('|').map(p => p.trim());
+        return {
+            name: parts[0] || 'Unknown',
+            dosage: parts[1] || 'As directed',
+            duration: parts[2] || '—',
+            instructions: parts[3] || '—'
+        };
+    });
+
+    const payload = {
+        patientName,
+        appointmentDate,
+        doctorName: 'Dr. Admin', // Dynamic based on login later if needed
+        diagnosis,
+        medicines,
+        doctorNotes: notes
+    };
+
+    try {
+        const res = await fetch('/api/doctor/prescription', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        if (res.status === 401) {
+            alert('Session expired. Please log in again.');
+            window.location.href = '/login.html';
+            return;
+        }
+        if (res.ok) {
+            alert('Prescription published successfully!');
+            closeRxModal();
+        } else {
+            const err = await res.json();
+            alert('Error: ' + (err.error || 'Failed to publish'));
+        }
+    } catch (err) {
+        alert('Network error while publishing prescription.');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Publish Prescription';
+    }
 }
 
 // ════════════════════════════════════════════════
