@@ -6,6 +6,14 @@ const calendar = google.calendar({ version: 'v3', auth });
 
 const CALENDAR_ID = 'primary'; // Use the user's primary calendar
 
+// bookAppointment() writes summaries as "Appointment with <Doctor>: <PatientName>"
+// (or "Appointment with Doctor: <PatientName>" when no doctor is given). Extract just the name.
+function extractPatientName(summary) {
+    if (!summary) return 'Unknown';
+    const match = summary.match(/^Appointment(?:\s+with\s+.+?)?:\s*(.+)$/i);
+    return match ? match[1].trim() : summary;
+}
+
 async function getAvailableSlots() {
     // Generate some mock slots for the next 2 days starting from tomorrow at 9 AM, 11 AM, 2 PM, 4 PM
     // In a real production system, you'd query calendar.freebusy to find exact gaps.
@@ -71,9 +79,10 @@ async function getAllAppointments() {
 
         return res.data.items.map(event => ({
             id: event.id,
-            patientName: event.summary ? event.summary.replace('Appointment: ', '') : 'Unknown',
+            patientName: extractPatientName(event.summary),
             time: event.start.dateTime || event.start.date,
-            reason: event.description || 'Consultation'
+            reason: event.description || 'Consultation',
+            email: event.extendedProperties?.private?.patientEmail || null,
         }));
     } catch (err) {
         console.error('Error fetching appointments:', err);
@@ -81,7 +90,7 @@ async function getAllAppointments() {
     }
 }
 
-async function bookAppointment(patientName, time, reason, doctorName) {
+async function bookAppointment(patientName, time, reason, doctorName, email) {
     try {
         const startTime = new Date(time);
         const endTime = new Date(startTime);
@@ -98,6 +107,9 @@ async function bookAppointment(patientName, time, reason, doctorName) {
                 dateTime: endTime.toISOString(),
                 timeZone: 'Asia/Kolkata',
             },
+            // Stored privately (not shown on the visible invite) so the admin dashboard
+            // and prescription-email flow can look it up later via getAllAppointments().
+            extendedProperties: email ? { private: { patientEmail: email } } : undefined,
         };
 
         const res = await calendar.events.insert({
@@ -106,7 +118,7 @@ async function bookAppointment(patientName, time, reason, doctorName) {
         });
 
         console.log(`✅ Booked in Google Calendar: ${res.data.htmlLink}`);
-        return { success: true, appointment: event };
+        return { success: true, appointment: event, eventId: res.data.id };
     } catch (err) {
         console.error('Error creating calendar event:', err);
         return { success: false, message: 'Google Calendar API error.' };

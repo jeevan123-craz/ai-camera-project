@@ -4,10 +4,11 @@ const http = require('http');
 const url = require('url');
 const { google } = require('googleapis');
 
-// Scopes for Calendar and Sheets
+// Scopes for Calendar, Sheets, and sending email (appointment/prescription notifications)
 const SCOPES = [
     'https://www.googleapis.com/auth/calendar',
-    'https://www.googleapis.com/auth/spreadsheets'
+    'https://www.googleapis.com/auth/spreadsheets',
+    'https://www.googleapis.com/auth/gmail.send'
 ];
 
 const TOKEN_PATH = path.join(__dirname, 'token.json');

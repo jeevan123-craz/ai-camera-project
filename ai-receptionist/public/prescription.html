@@ -56,6 +56,9 @@
         .rx-notes { padding:1.25rem 2rem; border-bottom:1px solid var(--border); }
         .rx-notes-text { font-size:.88rem; color:var(--text-sub); line-height:1.7; background:rgba(255,255,255,.025); border:1px solid var(--border); border-left:3px solid var(--indigo); border-radius:var(--radius-sm); padding:1rem 1.25rem; }
 
+        .rx-disclaimer { padding:1.25rem 2rem; border-bottom:1px solid var(--border); font-size:0.75rem; color:var(--text-muted); background:rgba(255,255,255,0.02); line-height:1.6; }
+        .rx-disclaimer strong { color:var(--rose); }
+
         .rx-actions { padding:1.25rem 2rem; display:flex; gap:.85rem; flex-wrap:wrap; }
         .rx-btn { display:inline-flex; align-items:center; gap:.5rem; padding:.75rem 1.4rem; border-radius:10px; font-family:'Outfit',sans-serif; font-size:.88rem; font-weight:600; cursor:pointer; border:1px solid var(--border); transition:all .2s; }
         .rx-btn-download { background:rgba(16,185,129,.1); border-color:rgba(16,185,129,.3); color:var(--emerald); }
@@ -168,6 +171,9 @@
         <div class="rx-notes">
             <div class="rx-section-title">Doctor's Notes</div>
             <div class="rx-notes-text" id="rxDoctorNotes"></div>
+        </div>
+        <div class="rx-disclaimer">
+            <strong>⚠️ DISCLAIMER:</strong> This prescription is securely published by your doctor. However, if this is a demonstration environment, the prescription may be mocked. Always consult your healthcare provider directly before taking any medications.
         </div>
         <div class="rx-actions">
             <button class="rx-btn rx-btn-download" onclick="downloadPrescription()">⬇️ Download Prescription</button>

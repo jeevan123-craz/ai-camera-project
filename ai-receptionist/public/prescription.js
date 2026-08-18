@@ -12,6 +12,25 @@ let currentPrescription = null;
 const $ = id => document.getElementById(id);
 
 // ════════════════════════════════════════════════
+// Deep-link support: /prescription.html?patient=Name&openBlinkit=1
+// Lets the "Order Medicines" email button land straight on this
+// patient's Blinkit ordering flow instead of making them retype their name.
+// ════════════════════════════════════════════════
+(function autoLoadFromQuery() {
+    const params = new URLSearchParams(window.location.search);
+    const patient = params.get('patient');
+    if (!patient) return;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        $('patientNameInput').value = patient;
+        await fetchPrescription();
+        if (params.get('openBlinkit') === '1' && currentPrescription) {
+            openBlinkitModal();
+        }
+    });
+})();
+
+// ════════════════════════════════════════════════
 // STEP 1: Fetch Prescription
 // ════════════════════════════════════════════════
 async function fetchPrescription() {

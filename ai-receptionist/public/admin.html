@@ -49,16 +49,59 @@
         .ws-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#ef4444; margin-right:6px; transition:background 0.3s; }
         .ws-dot.online { background:#10b981; box-shadow:0 0 6px rgba(16,185,129,0.4); animation:wsPulse 2s ease-in-out infinite; }
         @keyframes wsPulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+        
+        /* Modal */
+        .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); backdrop-filter:blur(4px); z-index:1000; justify-content:center; align-items:center; }
+        .modal.active { display:flex; }
+        .modal-content { background:#1e293b; padding:2rem; border-radius:12px; width:100%; max-width:600px; border:1px solid rgba(255,255,255,0.1); box-shadow:0 10px 25px rgba(0,0,0,0.5); }
+        .modal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; }
+        .modal-title { font-size:1.25rem; font-weight:600; color:#f8fafc; }
+        .close-btn { background:none; border:none; color:#94a3b8; font-size:1.5rem; cursor:pointer; }
+        .close-btn:hover { color:#f8fafc; }
+        .form-group { margin-bottom:1rem; }
+        .form-group label { display:block; font-size:0.85rem; color:#94a3b8; margin-bottom:0.4rem; }
+        .form-control { width:100%; padding:0.75rem; border-radius:6px; border:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.2); color:#f8fafc; font-family:'Outfit',sans-serif; }
+        .form-control:focus { outline:none; border-color:#6366f1; }
+        .btn-primary { background:#6366f1; color:white; border:none; padding:0.75rem 1.5rem; border-radius:6px; font-weight:600; cursor:pointer; width:100%; transition:background 0.2s; }
+        .btn-primary:hover { background:#4f46e5; }
+        .btn-rx { background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.3); padding:0.3rem 0.8rem; border-radius:99px; font-size:0.75rem; font-weight:600; cursor:pointer; margin-left:0.5rem; transition:all 0.2s; }
+        .btn-rx:hover { background:rgba(16,185,129,0.25); border-color:#10b981; color:#fff; }
+
+        /* ── Our Doctors ── */
+        .doctors-section { margin-top: 2rem; }
+        .doctors-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; }
+        .doctors-title { font-size:1rem; font-weight:600; color:#e2e8f0; }
+        .doctors-badge { font-size:0.75rem; background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); color:#818cf8; padding:0.2rem 0.65rem; border-radius:99px; font-weight:600; }
+        .doctors-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:1rem; }
+        .doctor-card { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:1.1rem 0.75rem; display:flex; flex-direction:column; align-items:center; text-align:center; transition:all 0.2s; }
+        .doctor-card:hover { background:rgba(255,255,255,0.05); border-color:rgba(99,102,241,0.3); transform:translateY(-2px); }
+        .doctor-photo { width:72px; height:72px; border-radius:50%; object-fit:cover; margin-bottom:0.75rem; background:rgba(255,255,255,0.08); border:2px solid rgba(99,102,241,0.3); }
+        .doctor-name { font-size:0.88rem; font-weight:600; color:#f1f5f9; margin-bottom:0.35rem; }
+        .doctor-specialty { font-size:0.72rem; color:#818cf8; background:rgba(99,102,241,0.12); padding:0.2rem 0.6rem; border-radius:99px; }
     </style>
 </head>
 <body>
+    <!-- Background Animated Aurora Orbs -->
+    <div class="admin-aurora" aria-hidden="true">
+        <span class="admin-aurora-blob blob-1"></span>
+        <span class="admin-aurora-blob blob-2"></span>
+        <span class="admin-aurora-blob blob-3"></span>
+    </div>
+
     <div class="dashboard-container">
         <!-- Sidebar -->
         <aside class="sidebar">
             <div class="logo-container">
-                <div class="logo-icon">🤖</div>
-                <h2>MedGuard AI</h2>
+                <div class="logo-icon-box">
+                    <span class="logo-pulse"></span>
+                    <span class="logo-icon">🤖</span>
+                </div>
+                <div>
+                    <h2>MedGuard <span>AI</span></h2>
+                    <span class="sidebar-sub">Admin Portal v2.5</span>
+                </div>
             </div>
+
             <nav>
                 <a href="/" class="nav-item">
                     <span class="icon">🎙️</span> Receptionist
@@ -69,84 +112,185 @@
                 <a href="/prescription.html" class="nav-item">
                     <span class="icon">📋</span> Prescriptions
                 </a>
-                <a href="#" class="nav-item">
-                    <span class="icon">⚙️</span> Settings
-                </a>
             </nav>
-            <div class="status-card">
-                <h4>System Status</h4>
-                <div class="status-indicator">
-                    <div class="dot pulse"></div>
-                    <span id="wsStatusLabel">Connecting…</span>
+
+            <div style="padding: 0 1.5rem; margin-top: 1.5rem; margin-bottom: 1rem;">
+                <button class="btn-primary" style="background: rgba(99,102,241,0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.3); width: 100%; text-align: left; padding: 0.8rem 1.2rem; display: flex; align-items: center; gap: 0.8rem; border-radius: 8px; cursor: pointer; transition: all 0.2s; font-family: 'Outfit', sans-serif; font-weight: 600;"
+                        onmouseover="this.style.background='rgba(99,102,241,0.25)'; this.style.borderColor='#818cf8'; this.style.color='#fff';"
+                        onmouseout="this.style.background='rgba(99,102,241,0.15)'; this.style.borderColor='rgba(99,102,241,0.3)'; this.style.color='#818cf8';"
+                        onclick="callPatient()">
+                    <span style="font-size: 1.2rem;">📞</span> Call Patient
+                </button>
+            </div>
+
+            <div class="sidebar-status-group">
+                <div class="status-card">
+                    <div class="status-card-head">
+                        <span class="status-card-icon">⚡</span>
+                        <h4>Server Status</h4>
+                    </div>
+                    <div class="status-indicator">
+                        <div class="dot pulse"></div>
+                        <span id="wsStatusLabel">System Online</span>
+                    </div>
+                </div>
+
+                <div class="status-card" id="whatsapp-card" style="display: none;">
+                    <div class="status-card-head">
+                        <span class="status-card-icon">💬</span>
+                        <h4>WhatsApp Agent</h4>
+                    </div>
+                    <div id="whatsapp-status-content" style="font-size: 0.85rem; color: #94a3b8; text-align: center;">
+                        Checking...
+                    </div>
+                </div>
+
+                <div class="status-card" id="google-auth-card">
+                    <div class="status-card-head">
+                        <span class="status-card-icon">🔑</span>
+                        <h4>Google Services</h4>
+                    </div>
+                    <div class="status-indicator" style="margin-top: 0.3rem;">
+                        <div class="dot" id="gauthDot" style="background: #64748b;"></div>
+                        <span id="gauthLabel" style="font-size: 0.82rem;">Checking…</span>
+                    </div>
+                    <div id="gauthDetail" style="font-size: 0.72rem; color: #64748b; margin-top: 0.3rem;"></div>
+                    <button id="gauthBtn" onclick="startGoogleReauth()" class="reauth-btn">
+                        🔑 Re-authenticate
+                    </button>
                 </div>
             </div>
         </aside>
 
         <!-- Main Content -->
         <main class="main-content">
-            <header>
+            <header class="main-header">
                 <div>
-                    <h1>Appointments Dashboard</h1>
-                    <p>Live sync with Google Calendar &amp; Sheets &nbsp;<span class="ws-dot" id="wsDot"></span></p>
+                    <div class="header-tag">Live Intelligence &amp; Management</div>
+                    <h1>Appointments &amp; System Dashboard</h1>
+                    <p>Real-time sync with Google Calendar, Sheets &amp; WhatsApp &nbsp;<span class="ws-dot" id="wsDot"></span></p>
                 </div>
-                <button class="refresh-btn" onclick="fetchAppointments()">
-                    🔄 Refresh
-                </button>
+                <div class="header-actions">
+                    <button class="refresh-btn" onclick="fetchAppointments()">
+                        🔄 <span>Refresh Data</span>
+                    </button>
+                </div>
             </header>
 
             <div class="stats-row">
-                <div class="stat-card">
-                    <h3>Total Bookings</h3>
+                <div class="stat-card glow-card stat-indigo">
+                    <div class="stat-head">
+                        <h3>Total Bookings</h3>
+                        <span class="stat-icon">📊</span>
+                    </div>
                     <div class="stat-value" id="total-bookings">0</div>
+                    <span class="stat-sub">Lifetime appointments</span>
                 </div>
-                <div class="stat-card">
-                    <h3>Today's Bookings</h3>
+                <div class="stat-card glow-card stat-emerald">
+                    <div class="stat-head">
+                        <h3>Today's Bookings</h3>
+                        <span class="stat-icon">📅</span>
+                    </div>
                     <div class="stat-value" id="today-bookings">0</div>
+                    <span class="stat-sub">Scheduled for today</span>
                 </div>
-                <div class="stat-card">
-                    <h3>Upcoming</h3>
+                <div class="stat-card glow-card stat-amber">
+                    <div class="stat-head">
+                        <h3>Upcoming</h3>
+                        <span class="stat-icon">⏳</span>
+                    </div>
                     <div class="stat-value" id="upcoming-bookings">0</div>
+                    <span class="stat-sub">Future consultations</span>
                 </div>
-                <div class="stat-card" style="border-left:3px solid #fb923c;">
-                    <h3>Blinkit Orders</h3>
-                    <div class="stat-value" id="blinkit-count" style="color:#fb923c;">0</div>
+                <div class="stat-card glow-card stat-orange">
+                    <div class="stat-head">
+                        <h3>Blinkit Orders</h3>
+                        <span class="stat-icon">🛒</span>
+                    </div>
+                    <div class="stat-value" id="blinkit-count">0</div>
+                    <span class="stat-sub">Medicine deliveries</span>
                 </div>
             </div>
 
-            <div class="table-container">
-                <table class="glass-table">
-                    <thead>
-                        <tr>
-                            <th>Patient Name</th>
-                            <th>Date &amp; Time</th>
-                            <th>Reason / Symptoms</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody id="appointments-body">
-                        <tr>
-                            <td colspan="4" class="loading-state">Loading appointments...</td>
-                        </tr>
-                    </tbody>
-                </table>
+            <!-- ══ ANALYTICS SECTION ══ -->
+            <div class="analytics-section">
+                <div class="doctors-header">
+                    <div class="doctors-title">📈 Clinic Analytics &amp; Trends</div>
+                    <span class="doctors-badge" id="analyticsTotalBadge">—</span>
+                </div>
+                <div class="analytics-grid">
+                    <div class="chart-card glow-card chart-wide">
+                        <h4>Bookings — last 14 days</h4>
+                        <div class="chart-box"><canvas id="chartTrend"></canvas></div>
+                    </div>
+                    <div class="chart-card glow-card">
+                        <h4>Bookings by doctor</h4>
+                        <div class="chart-box"><canvas id="chartDoctors"></canvas></div>
+                    </div>
+                    <div class="chart-card glow-card">
+                        <h4>Channel split</h4>
+                        <div class="chart-box"><canvas id="chartMode"></canvas></div>
+                    </div>
+                    <div class="chart-card glow-card">
+                        <h4>Peak booking hours</h4>
+                        <div class="chart-box"><canvas id="chartHours"></canvas></div>
+                    </div>
+                    <div class="chart-card glow-card">
+                        <h4>Top visit reasons</h4>
+                        <div class="chart-box"><canvas id="chartReasons"></canvas></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ══ OUR DOCTORS SECTION ══ -->
+            <div class="doctors-section">
+                <div class="doctors-header">
+                    <div class="doctors-title">🩺 Our Specialists Roster</div>
+                    <span class="doctors-badge" id="doctorsCountBadge">0</span>
+                </div>
+                <div class="doctors-grid" id="doctorsGrid"></div>
+            </div>
+
+            <!-- ══ APPOINTMENTS TABLE ══ -->
+            <div class="table-section" style="margin-top: 2rem;">
+                <div class="doctors-header">
+                    <div class="doctors-title">📋 Scheduled Appointments</div>
+                </div>
+                <div class="table-container glow-card">
+                    <table class="glass-table">
+                        <thead>
+                            <tr>
+                                <th>Patient Name</th>
+                                <th>Date &amp; Time</th>
+                                <th>Reason / Symptoms</th>
+                                <th>Status / Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="appointments-body">
+                            <tr>
+                                <td colspan="4" class="loading-state">Loading appointments...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             <!-- ══ LIVE LOGS SECTION ══ -->
             <div class="logs-section">
                 <div class="logs-header">
-                    <div class="logs-title">📡 Live Activity Logs</div>
+                    <div class="logs-title">📡 Live Activity Stream</div>
                     <span class="logs-badge" id="logsCountBadge">0</span>
                 </div>
 
                 <div class="log-filter-row">
-                    <button class="log-filter-btn active" data-filter="all" onclick="setLogFilter('all', this)">All</button>
+                    <button class="log-filter-btn active" data-filter="all" onclick="setLogFilter('all', this)">All Activity</button>
                     <button class="log-filter-btn" data-filter="blinkit" onclick="setLogFilter('blinkit', this)">🛒 Blinkit Orders</button>
                     <button class="log-filter-btn" data-filter="user" onclick="setLogFilter('user', this)">👤 Patients</button>
-                    <button class="log-filter-btn" data-filter="ai" onclick="setLogFilter('ai', this)">🤖 AI</button>
+                    <button class="log-filter-btn" data-filter="ai" onclick="setLogFilter('ai', this)">🤖 AI Responses</button>
                     <button class="log-filter-btn" data-filter="whatsapp" onclick="setLogFilter('whatsapp', this)">💬 WhatsApp</button>
                 </div>
 
-                <div class="logs-box" id="logsBox">
+                <div class="logs-box glow-card" id="logsBox">
                     <div style="text-align:center; color:#4b5563; font-size:0.85rem; padding:2rem;">Waiting for activity…</div>
                 </div>
             </div>
@@ -154,6 +298,42 @@
         </main>
     </div>
 
+    <!-- Write Prescription Modal -->
+    <div class="modal" id="rxModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Write Prescription</h3>
+                <button class="close-btn" onclick="closeRxModal()">&times;</button>
+            </div>
+            <form id="rxForm" onsubmit="submitPrescription(event)">
+                <input type="hidden" id="rxPatientName">
+                <input type="hidden" id="rxAppointmentDate">
+                <div class="form-group">
+                    <label>Patient</label>
+                    <input type="text" id="rxPatientDisplay" class="form-control" disabled>
+                </div>
+                <div class="form-group">
+                    <label>Patient Email <span style="color:#64748b; font-weight:400;">(optional — sends this prescription to their inbox)</span></label>
+                    <input type="email" id="rxPatientEmail" class="form-control" placeholder="patient@example.com">
+                </div>
+                <div class="form-group">
+                    <label>Diagnosis</label>
+                    <input type="text" id="rxDiagnosis" class="form-control" placeholder="e.g. Viral Fever" required>
+                </div>
+                <div class="form-group">
+                    <label>Medicines (Format: Name | Dosage | Duration | Instructions. One per line)</label>
+                    <textarea id="rxMedicines" class="form-control" rows="4" placeholder="Paracetamol 500mg | 1 tab | 5 days | After meals&#10;Vitamin C | 1 tab | 7 days | Morning" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Doctor's Notes</label>
+                    <textarea id="rxNotes" class="form-control" rows="2" placeholder="Drink plenty of water..." required></textarea>
+                </div>
+                <button type="submit" class="btn-primary" id="rxSubmitBtn">Publish Prescription</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script src="admin.js"></script>
 </body>
 </html>

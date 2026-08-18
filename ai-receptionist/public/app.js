@@ -28,10 +28,6 @@ const DOM = {
     transcriptEmpty:$('transcriptEmpty'),
     clearBtn:       $('clearBtn'),
     browserWarning: $('browserWarning'),
-    apptList:       $('apptList'),
-    apptCount:      $('apptCount'),
-    slotsList:      $('slotsList'),
-    slotsCount:     $('slotsCount'),
 };
 
 // ── App State ────────────────────────────────────
@@ -77,23 +73,10 @@ function initWebSocket() {
         DOM.badgeLabel.textContent = 'Connection Error';
     };
 
-    ws.onmessage = ({ data }) => {
-        try {
-            const { appointments = [], availableSlots = [], logs = [], whatsappStatus = {} } = JSON.parse(data);
-            renderDashboard(appointments, availableSlots, logs, whatsappStatus);
-        } catch (e) {
-            console.error('WebSocket parse error:', e);
-        }
-    };
-}
-
-// ── Dashboard Render ─────────────────────────────
-function fmtTime(iso) {
-    const d = new Date(iso);
-    return {
-        time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        date: d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }),
-    };
+    // The dashboard panel (appointments/slots/logs/WhatsApp status) this used to drive was
+    // moved to the admin portal — this page no longer has anywhere to render it, so the
+    // connection badge (handled in onopen/onclose/onerror above) is all we need here.
+    ws.onmessage = () => {};
 }
 
 function esc(str) {
@@ -102,118 +85,86 @@ function esc(str) {
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function renderDashboard(appointments, slots, logs = []) {
-    // Appointments
-    DOM.apptCount.textContent = appointments.length;
-    if (!appointments.length) {
-        DOM.apptList.innerHTML = '<p class="placeholder-msg">No appointments yet.</p>';
-    } else {
-        appointments.sort((a, b) => new Date(a.time) - new Date(b.time));
-        DOM.apptList.innerHTML = appointments.map(a => {
-            const { time, date } = fmtTime(a.time);
-            return `<div class="appt-card">
-                <div>
-                    <div class="appt-time">${esc(time)} <span class="appt-date">· ${esc(date)}</span></div>
-                    <div class="appt-name">${esc(a.patientName)}</div>
-                </div>
-                <span class="confirmed-badge">✓ Confirmed</span>
-            </div>`;
-        }).join('');
-    }
-
-    // Slots
-    DOM.slotsCount.textContent = slots.length;
-    if (!slots.length) {
-        DOM.slotsList.innerHTML = '<p class="placeholder-msg">No slots available.</p>';
-    } else {
-        DOM.slotsList.innerHTML = slots.map(s => {
-            const { time, date } = fmtTime(s);
-            return `<span class="slot-tag">${esc(time)} · ${esc(date)}</span>`;
-        }).join('');
-    }
-
-    // Logs
-    const logsCount = $('logsCount');
-    const liveLogsList = $('liveLogsList');
-    if (logsCount && liveLogsList) {
-        logsCount.textContent = logs.length;
-        if (!logs.length) {
-            liveLogsList.innerHTML = '<p class="placeholder-msg">No activity yet.</p>';
-        } else {
-            liveLogsList.innerHTML = logs.map(log => {
-                const time = new Date(log.timestamp).toLocaleTimeString();
-                const icon = log.role === 'user' ? '👤' : (log.role === 'ai' ? '🤖' : '⚙️');
-                const extraInfo = log.extra?.ip ? `<div style="font-size: 0.65rem; color: #6b7280; margin-top: 0.25rem;">IP: ${esc(log.extra.ip)} | Device: ${esc(log.extra.userAgent)}</div>` : '';
-                return `<div style="margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.1);">
-                    <div style="font-size: 0.75rem; color: #9ca3af; margin-bottom: 0.25rem;">[${log.source}] ${time} - ${esc(log.sessionId)}</div>
-                    <div><strong>${icon}</strong> ${esc(log.text)}</div>
-                    ${extraInfo}
-                </div>`;
-            }).join('');
-        }
-    }
-
-    // Render WhatsApp Connection Panel
-    const waDot = $('waDot');
-    const waLabel = $('waLabel');
-    const waBody = $('waBody');
-
-    if (waDot && waLabel && waBody) {
-        if (whatsappStatus.ready) {
-            waDot.style.background = '#10b981'; // Green
-            waLabel.textContent = 'Active & Connected';
-            waBody.innerHTML = `
-                <div style="display: flex; flex-direction: column; align-items: center; gap: 0.75rem; color: #34d399;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" viewBox="0 0 16 16">
-                        <path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.907h.003c4.368 0 7.927-3.558 7.929-7.93a7.86 7.86 0 0 0-2.325-5.643h-.003zM8.001 14.55a6.572 6.572 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592zm3.69-4.29c-.202-.101-1.2-.59-1.385-.658-.182-.066-.315-.1-.45.1-.136.2-.527.658-.646.793-.119.135-.239.149-.44.049-2.009-.977-3.21-1.996-3.856-3.111-.17-.291-.018-.448.125-.59.13-.127.29-.34.436-.5.145-.165.193-.275.29-.46.096-.185.048-.347-.024-.49-.071-.144-.645-1.554-.882-2.122-.232-.557-.464-.482-.646-.492-.167-.008-.36-.01-.55-.01s-.5.07-.763.35c-.264.28-1.012 1.01-1.012 2.46 0 1.45.986 2.85 1.124 3.037.137.185 2.017 3.082 4.99 4.364.707.306 1.258.489 1.691.626.711.226 1.36.195 1.871.118.571-.085 1.2-.49 1.37-1.002.17-.51.17-.95.12-1.002-.05-.053-.18-.085-.38-.187z"/>
-                    </svg>
-                    <strong>Alex Bot is Online & Ready to Receive Messages!</strong>
-                    <p style="font-size: 0.85rem; color: #9ca3af; max-width: 400px; margin: 0;">Patients can text your WhatsApp number directly to consult or book appointments.</p>
-                </div>
-            `;
-        } else if (whatsappStatus.qr) {
-            waDot.style.background = '#f59e0b'; // Amber
-            waLabel.textContent = 'Action Required';
-            waBody.innerHTML = `
-                <div style="display: flex; flex-direction: column; align-items: center; gap: 1rem;">
-                    <p style="font-weight: 500; font-size: 0.95rem; color: #f3f4f6; margin: 0;">Scan this QR code with WhatsApp on your phone to link Alex Bot:</p>
-                    <div style="background: white; padding: 1rem; border-radius: 12px; display: inline-block;">
-                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(whatsappStatus.qr)}" alt="WhatsApp QR Code" style="display: block; width: 200px; height: 200px;" />
-                    </div>
-                    <ol style="font-size: 0.85rem; text-align: left; max-width: 350px; color: #9ca3af; margin: 0; padding-left: 1.25rem;">
-                        <li>Open WhatsApp on your phone</li>
-                        <li>Tap <strong>Settings</strong> &rarr; <strong>Linked Devices</strong> &rarr; <strong>Link a Device</strong></li>
-                        <li>Point your phone camera at this screen to scan</li>
-                    </ol>
-                </div>
-            `;
-        } else {
-            waDot.style.background = '#6b7280'; // Grey
-            waLabel.textContent = 'Disconnected';
-            waBody.innerHTML = `
-                <div style="display: flex; flex-direction: column; align-items: center; gap: 0.5rem; color: #9ca3af;">
-                    <p>WhatsApp engine is starting up. Please wait...</p>
-                </div>
-            `;
-        }
-    }
+// Doctor headshots (sourced from kmchhospitals.com/all-doctors/). Kept out of the
+// AI prompt on purpose — long URLs repeated across every chat turn risk the model
+// mangling them. The AI only ever needs to say the doctor's name; we look up the photo here.
+const DOCTOR_PHOTOS = {
+    'Dr. K.I. Joseph': 'https://kmchhospitals.com/wp-content/uploads/2025/01/Dr.-K.I.-Joseph.png',
+    'Dr. Thomas Alexander': 'https://kmchhospitals.com/wp-content/uploads/2024/04/Dr.-Thomas-Alexander-kmch.png',
+    'Dr. S. Pavithra': 'https://kmchhospitals.com/wp-content/uploads/2025/07/Dr-Pavitra-Derma.png',
+    'Dr. K. Baskaran': 'https://kmchhospitals.com/wp-content/uploads/2025/07/Dr-Baskaran-ortho.png',
+    'Dr. D. Ashwath': 'https://kmchhospitals.com/wp-content/uploads/2025/07/Dr.-D.-Ashwath-.png',
+    'Dr. S. Aravindh': 'https://kmchhospitals.com/wp-content/uploads/2025/01/Dr.-S.-Aravindh-Gastro.webp',
+    'Dr. P. Baskar': 'https://kmchhospitals.com/wp-content/uploads/2025/07/Dr-Baskar.png',
+    'Dr. A.N. Murugan': 'https://kmchhospitals.com/wp-content/uploads/2025/07/Dr.A.N.-Murgan.png',
+    'Dr. Jayanthi Veerappan': 'https://kmchhospitals.com/wp-content/uploads/2025/07/Dr.Jayanthi-Veerappan.png',
+    'Dr. P.B. Barani Kumar': 'https://kmchhospitals.com/wp-content/uploads/2025/07/Dr.Baranikumar.png',
+    'Dr. T.R. Sivagnanam': 'https://kmchhospitals.com/wp-content/uploads/2025/01/Dr-Sivagnanam-diabetology.png',
+    'Dr. J. Venugopal': 'https://kmchhospitals.com/wp-content/uploads/2025/07/Dr.Venugopal.png',
+};
+const DOCTOR_PHOTO_FALLBACK = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="20" fill="#6366f1"/><text x="50%" y="56%" font-size="18" text-anchor="middle" fill="white" font-family="sans-serif">🩺</text></svg>`
+);
+// Normalized lookup (strips spacing/punctuation) so minor formatting drift from the
+// LLM's output (e.g. "Dr K I Joseph" vs "Dr. K.I. Joseph") still resolves to a photo.
+function normalizeDoctorName(name) {
+    return (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+const DOCTOR_PHOTOS_NORMALIZED = Object.fromEntries(
+    Object.entries(DOCTOR_PHOTOS).map(([k, v]) => [normalizeDoctorName(k), v])
+);
+function getDoctorPhoto(name) {
+    return DOCTOR_PHOTOS_NORMALIZED[normalizeDoctorName(name)] || DOCTOR_PHOTO_FALLBACK;
 }
 
+// Roster for the "Meet our specialists" showcase (specialties mirror the clinic
+// prompt in ai.js — kept here so the grid can render without a round-trip).
+const DOCTORS = [
+    { name: 'Dr. K.I. Joseph',        specialty: 'General Physician' },
+    { name: 'Dr. Thomas Alexander',   specialty: 'Cardiologist' },
+    { name: 'Dr. S. Pavithra',        specialty: 'Dermatologist' },
+    { name: 'Dr. K. Baskaran',        specialty: 'Orthopedic Surgeon' },
+    { name: 'Dr. D. Ashwath',         specialty: 'Pediatrician' },
+    { name: 'Dr. S. Aravindh',        specialty: 'Gastroenterologist' },
+    { name: 'Dr. P. Baskar',          specialty: 'Neurologist' },
+    { name: 'Dr. A.N. Murugan',       specialty: 'ENT Specialist' },
+    { name: 'Dr. Jayanthi Veerappan', specialty: 'Gynecologist' },
+    { name: 'Dr. P.B. Barani Kumar',  specialty: 'Urologist' },
+    { name: 'Dr. T.R. Sivagnanam',    specialty: 'Diabetologist' },
+    { name: 'Dr. J. Venugopal',       specialty: 'Pulmonologist' },
+];
+
+// (Old appointments/slots/logs/WhatsApp panel removed — see the ws.onmessage comment above.
+// That live data now only renders in the admin portal, which has its own WebSocket handler.)
+
 // ════════════════════════════════════════════════
-// TTS — Web Speech API (100% Free, No Billing)
-// Picks best available English voice automatically
+// TTS — Voice Engine (Google Browser TTS or ElevenLabs)
 // ════════════════════════════════════════════════
-function speak(text) {
-    return new Promise((resolve) => {
+let currentAudio = null;
+
+function getVoiceEngine() {
+    const toggle = document.getElementById('voiceEngineSwitch');
+    return (toggle && toggle.checked) ? 'elevenlabs' : 'browser';
+}
+
+async function speak(text) {
+    return new Promise(async (resolve) => {
         setPhase('speaking');
-        speechSynthesis.cancel(); // clear any pending speech
+        
+        // Stop any currently playing audio (ElevenLabs)
+        if (currentAudio) {
+            currentAudio.pause();
+            currentAudio = null;
+        }
+        // Stop any currently playing browser speech (Browser TTS)
+        window.speechSynthesis.cancel();
 
         // Clean out specific tags from spoken text
         let cleanText = text || '';
         cleanText = cleanText.replace(/\[BOOK:\s*[^\]]+\]/gi, '');
         cleanText = cleanText.replace(/\[SEND_WHATSAPP:\s*[^\]]+\]/gi, '');
         cleanText = cleanText.replace(/\[TABLE:\s*[^\]]+\]/gi, '');
-        cleanText = cleanText.replace(/\[DOCTORS_CHART\]/gi, '');
+        cleanText = cleanText.replace(/\[DOCTORS_CHART(?::\s*[^\]]+)?\]/gi, '');
         cleanText = cleanText.replace(/\s+/g, ' ').trim();
 
         if (!cleanText) {
@@ -221,46 +172,69 @@ function speak(text) {
             return;
         }
 
-        const utter  = new SpeechSynthesisUtterance(cleanText);
-        utter.rate   = 0.92;  // slightly slower = clearer
-        utter.pitch  = 1.0;
-        utter.volume = 1.0;
+        const engine = getVoiceEngine();
 
-        // Priority order: Best natural-sounding beautiful female voices (Jenny, Michelle, Aria, Sonia, etc.)
-        const voices = speechSynthesis.getVoices();
-        
-        if (state.language === 'ta-IN') {
-            utter.lang = 'ta-IN'; // Force browser's phonetic engine to Tamil
-            // Find a premium female Tamil voice
-            utter.voice = 
-                voices.find(v => v.lang.includes('ta') && v.name.includes('Pallavi')) ||
-                voices.find(v => v.name.includes('Google') && v.name.includes('Tamil')) ||
-                voices.find(v => v.lang.includes('ta') && v.name.toLowerCase().includes('female')) ||
-                voices.find(v => v.lang.includes('ta')) || 
-                voices[0] || null;
+        if (engine === 'browser') {
+            // -- GOOGLE BROWSER TTS --
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+            utterance.lang = state.language;
+            
+            // Try to find a good Female voice first, fallback to Google/Natural, then any matching lang
+            const voices = window.speechSynthesis.getVoices();
+            const voice = voices.find(v => v.lang === state.language && (v.name.includes('Female') || v.name.includes('Zira') || v.name.includes('Samantha') || v.name.includes('Victoria') || v.name.includes('Jenny')))
+                       || voices.find(v => v.lang === state.language && (v.name.includes('Google') || v.name.includes('Natural')))
+                       || voices.find(v => v.lang === state.language)
+                       || voices.find(v => v.lang.startsWith(state.language.split('-')[0]));
+            
+            if (voice) utterance.voice = voice;
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
+
+            utterance.onend = () => resolve();
+            utterance.onerror = (e) => {
+                console.error('Browser TTS error:', e);
+                resolve();
+            };
+            
+            window.speechSynthesis.speak(utterance);
         } else {
-            utter.lang = 'en-US';
-            utter.voice  =
-                // 1. Premium Edge/Windows Natural Female Voices (Beautiful & Ultra-realistic)
-                voices.find(v => v.name.includes('Jenny Online (Natural)')) ||
-                voices.find(v => v.name.includes('Michelle Online (Natural)')) ||
-                voices.find(v => v.name.includes('Aria Online (Natural)')) ||
-                voices.find(v => v.name.includes('Sonia Online (Natural)')) ||
-                voices.find(v => v.name.includes('Natasha Online (Natural)')) ||
-                // 2. High-Quality Google Chrome Female Voices
-                voices.find(v => v.name === 'Google UK English Female') ||
-                voices.find(v => v.name === 'Google US English') ||
-                // 3. Fallbacks for other platforms (Safari, Mobile, standard OS)
-                voices.find(v => v.name.toLowerCase().includes('female') && v.lang.startsWith('en')) ||
-                voices.find(v => v.name.includes('Zira')) ||  // Standard Windows female desktop
-                voices.find(v => v.name.includes('Hazel')) || // Standard UK female desktop
-                voices.find(v => v.lang === 'en-US') ||
-                voices[0] || null;
-        }
+            // -- ELEVENLABS --
+            try {
+                const res = await fetch('/api/tts-elevenlabs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: cleanText, lang: state.language })
+                });
 
-        utter.onend   = resolve;
-        utter.onerror = resolve;
-        speechSynthesis.speak(utter);
+                if (!res.ok) {
+                    // Fallback to browser TTS if ElevenLabs fails
+                    console.warn('ElevenLabs TTS failed, falling back to Browser TTS');
+                    document.getElementById('voiceEngineSwitch').checked = false; // toggle off visually
+                    return speak(cleanText).then(resolve);
+                }
+
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                currentAudio = new Audio(url);
+                
+                currentAudio.onended = () => {
+                    URL.revokeObjectURL(url);
+                    currentAudio = null;
+                    resolve();
+                };
+                
+                currentAudio.onerror = () => {
+                    URL.revokeObjectURL(url);
+                    currentAudio = null;
+                    resolve();
+                };
+
+                await currentAudio.play();
+            } catch (err) {
+                console.error('ElevenLabs TTS error:', err);
+                resolve();
+            }
+        }
     });
 }
 
@@ -373,18 +347,45 @@ function stopListening() {
 async function processUserSpeech(text) {
     stopListening();
     setPhase('thinking');
+    addTypingIndicator();
 
     const result = await sendToAI(text);
-    if (result.reply) addBubble('ai', result.reply);
-    
+    removeTypingIndicator();
+    if (result.reply) addBubble('ai', result.reply, false, result.error);
+
     if (result.booked) {
         playSuccessSound();
+    } else if (result.error) {
+        playErrorSound();
     }
 
     await speak(result.reply || "I'm sorry, I couldn't process that. Please try again.");
 
     // Continue conversation loop
     if (state.callActive) startListening();
+}
+
+// Shared text-message flow used by the chat form, quick-chips, and doctor cards.
+// (Voice input has its own path via processUserSpeech, which also speaks the reply.)
+async function handleUserMessage(text) {
+    text = (text || '').trim();
+    if (!text || state.processing) return;
+    state.processing = true;
+
+    addBubble('user', text);
+    playMessageSentSound();
+
+    setPhase('thinking');
+    addTypingIndicator();
+    const result = await sendToAI(text);
+    removeTypingIndicator();
+    if (result.reply) addBubble('ai', result.reply, false, result.error);
+
+    if (result.booked)      playSuccessSound();
+    else if (result.error)  playErrorSound();
+
+    setPhase('idle');
+    state.processing = false;
 }
 
 async function sendToAI(message) {
@@ -404,7 +405,8 @@ async function sendToAI(message) {
         console.error('AI request failed:', err);
         return {
             reply: "I'm sorry, I'm having a connection issue right now. Please try again.",
-            booked: false
+            booked: false,
+            error: true
         };
     }
 }
@@ -465,6 +467,21 @@ function playListeningSound() {
     playSynthTone([880.00, 1174.66], [0.06, 0.08], 'sine', [0.08, 0.005]);
 }
 
+// Error tone: low descending "uh-oh" pair
+function playErrorSound() {
+    playSynthTone([311.13, 233.08], [0.14, 0.22], 'triangle', [0.14, 0.005]);
+}
+
+// Notify chime: soft two-note pop, used when interactive content (slot table / doctors chart) appears
+function playNotifyChime() {
+    playSynthTone([740.00, 987.77], [0.07, 0.1], 'sine', [0.10, 0.004]);
+}
+
+// Message sent: tiny blip for outgoing text messages
+function playMessageSentSound() {
+    playSynthTone([500], [0.045], 'sine', [0.09, 0.005]);
+}
+
 // ════════════════════════════════════════════════
 // Mic Button
 // ════════════════════════════════════════════════
@@ -486,7 +503,7 @@ async function handleMicClick() {
         playClickSound();
         // ── PUSH TO TALK / INTERRUPT ──
         if (state.phase === 'speaking') {
-            speechSynthesis.cancel();
+            if (currentAudio) { currentAudio.pause(); currentAudio = null; }
             startListening();
         } else if (state.phase === 'idle') {
             startListening();
@@ -499,7 +516,7 @@ async function handleMicClick() {
 function endCall() {
     state.callActive = false;
     playEndCallSound();
-    speechSynthesis.cancel();
+    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
     stopListening();
     setPhase('idle');
     if (DOM.endCallBtn) DOM.endCallBtn.classList.add('hidden');
@@ -549,13 +566,35 @@ function setPhase(phase) {
 }
 
 // ════════════════════════════════════════════════
+// Typing Indicator (shown while AI is "thinking")
+// ════════════════════════════════════════════════
+function addTypingIndicator() {
+    removeTypingIndicator();
+    DOM.transcriptEmpty.classList.add('hidden');
+    const el = document.createElement('div');
+    el.className = 'bubble ai';
+    el.id = 'typingIndicator';
+    el.innerHTML = `
+        <div class="bubble-label">🤖 MedGuard AI</div>
+        <div class="bubble-text typing-dots"><span></span><span></span><span></span></div>
+    `;
+    DOM.transcriptBody.appendChild(el);
+    DOM.transcriptBody.scrollTop = DOM.transcriptBody.scrollHeight;
+}
+
+function removeTypingIndicator() {
+    const el = $('typingIndicator');
+    if (el) el.remove();
+}
+
+// ════════════════════════════════════════════════
 // Transcript Bubbles
 // ════════════════════════════════════════════════
-function addBubble(role, text, isInterim = false) {
+function addBubble(role, text, isInterim = false, isError = false) {
     DOM.transcriptEmpty.classList.add('hidden');
 
     const el = document.createElement('div');
-    el.className = `bubble ${role}${isInterim ? ' interim' : ''}`;
+    el.className = `bubble ${role}${isInterim ? ' interim' : ''}${isError ? ' error' : ''}`;
 
     let cleanTextDisplay = text || '';
     // Strip [BOOK: ...] and [SEND_WHATSAPP: ...] from text bubbles
@@ -610,50 +649,58 @@ function addBubble(role, text, isInterim = false) {
     }
 
     let parsedDoctorsChartHTML = '';
-    const chartRegex = /\[DOCTORS_CHART\]/i;
-    if (cleanTextDisplay.match(chartRegex)) {
+    const chartRegex = /\[DOCTORS_CHART(?::\s*([^\]]+))?\]/i;
+    const chartMatch = cleanTextDisplay.match(chartRegex);
+    if (chartMatch) {
         cleanTextDisplay = cleanTextDisplay.replace(chartRegex, '').trim();
-        parsedDoctorsChartHTML = `
-            <div style="margin-top: 10px; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; overflow: hidden; font-size: 0.85rem; width: 100%;">
-                <table style="width: 100%; border-collapse: collapse; text-align: left; color: #fff;">
-                    <thead style="background: rgba(255,255,255,0.1);">
-                        <tr>
-                            <th style="padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.2);">Doctor Name</th>
-                            <th style="padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.2);">Specialty</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
-                            <td style="padding: 8px 12px;">Dr. Sarah Jenkins</td>
-                            <td style="padding: 8px 12px; color: #9ca3af;">General Physician</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
-                            <td style="padding: 8px 12px;">Dr. Michael Chen</td>
-                            <td style="padding: 8px 12px; color: #9ca3af;">Cardiologist</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
-                            <td style="padding: 8px 12px;">Dr. Emily Rodriguez</td>
-                            <td style="padding: 8px 12px; color: #9ca3af;">Dermatologist</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
-                            <td style="padding: 8px 12px;">Dr. David Smith</td>
-                            <td style="padding: 8px 12px; color: #9ca3af;">Orthopedist</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px 12px;">Dr. Priya Patel</td>
-                            <td style="padding: 8px 12px; color: #9ca3af;">Pediatrician</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        `;
+
+        const doctors = (chartMatch[1] || '').split(',')
+            .map(entry => {
+                const [name, specialty] = entry.split('|').map(s => (s || '').trim());
+                return { name, specialty };
+            })
+            .filter(d => d.name);
+
+        if (doctors.length > 0) {
+            const rows = doctors.map((d, i) => {
+                const photo = getDoctorPhoto(d.name);
+                return `
+                <tr${i < doctors.length - 1 ? ' style="border-bottom: 1px solid rgba(255,255,255,0.1);"' : ''}>
+                    <td style="padding: 6px 12px;"><img src="${esc(photo)}" alt="${esc(d.name)}" onerror="this.onerror=null;this.src='${DOCTOR_PHOTO_FALLBACK}';" style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover; display: block; background: rgba(255,255,255,0.08);"></td>
+                    <td style="padding: 8px 12px;">${esc(d.name)}</td>
+                    <td style="padding: 8px 12px; color: #9ca3af;">${esc(d.specialty || '—')}</td>
+                </tr>
+            `;
+            }).join('');
+
+            parsedDoctorsChartHTML = `
+                <div style="margin-top: 10px; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; overflow: hidden; font-size: 0.85rem; width: 100%;">
+                    <table style="width: 100%; border-collapse: collapse; text-align: left; color: #fff;">
+                        <thead style="background: rgba(255,255,255,0.1);">
+                            <tr>
+                                <th style="padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.2); width: 52px;"></th>
+                                <th style="padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.2);">Doctor Name</th>
+                                <th style="padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.2);">Specialty</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+            `;
+        }
     }
 
     const formattedText = esc(cleanTextDisplay).replace(/\n/g, '<br>') + parsedTableHTML + parsedDoctorsChartHTML;
 
+    if (parsedTableHTML || parsedDoctorsChartHTML) playNotifyChime();
+
+    const timeStamp = isInterim ? '' :
+        `<div class="bubble-time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>`;
+
     el.innerHTML = `
         <div class="bubble-label">${role === 'user' ? 'You' : '🤖 MedGuard AI'}</div>
         <div class="bubble-text" style="line-height: 1.5;">${formattedText}</div>
+        ${timeStamp}
     `;
     DOM.transcriptBody.appendChild(el);
     DOM.transcriptBody.scrollTop = DOM.transcriptBody.scrollHeight;
@@ -690,6 +737,55 @@ DOM.clearBtn.addEventListener('click', () => {
 });
 
 // ════════════════════════════════════════════════
+// Doctors Showcase
+// ════════════════════════════════════════════════
+function renderDoctors() {
+    const grid = $('doctorsGrid');
+    if (!grid) return;
+
+    grid.innerHTML = DOCTORS.map((d, i) => `
+        <button class="doctor-card" style="animation-delay:${(i * 0.045).toFixed(3)}s">
+            <span class="doctor-avatar-wrap">
+                <img class="doctor-avatar" src="${esc(getDoctorPhoto(d.name))}" alt="${esc(d.name)}"
+                     onerror="this.onerror=null;this.src='${DOCTOR_PHOTO_FALLBACK}';">
+            </span>
+            <span class="doctor-info">
+                <span class="doctor-name">${esc(d.name)}</span>
+                <span class="doctor-specialty">${esc(d.specialty)}</span>
+            </span>
+        </button>
+    `).join('');
+
+    const count = $('doctorCount');
+    if (count) count.textContent = DOCTORS.length;
+
+    grid.querySelectorAll('.doctor-card').forEach((card, i) => {
+        card.addEventListener('click', () => {
+            const d = DOCTORS[i];
+            handleUserMessage(`Tell me about ${d.name} (${d.specialty}) — are they available and can I book an appointment?`);
+            document.querySelector('.call-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
+}
+
+// ════════════════════════════════════════════════
+// Conversation Tools (copy / download)
+// ════════════════════════════════════════════════
+function collectTranscript() {
+    const lines = [];
+    DOM.transcriptBody.querySelectorAll('.bubble').forEach(b => {
+        if (b.id === 'typingIndicator') return;
+        const txtEl = b.querySelector('.bubble-text');
+        if (!txtEl) return;
+        const t = txtEl.innerText.trim();
+        if (!t) return;
+        const who = b.classList.contains('user') ? 'You' : 'MedGuard AI';
+        lines.push(`${who}: ${t}`);
+    });
+    return lines.join('\n\n');
+}
+
+// ════════════════════════════════════════════════
 // Boot
 // ════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', () => {
@@ -702,23 +798,53 @@ window.addEventListener('DOMContentLoaded', () => {
     const textChatInput = $('textChatInput');
     
     if (textChatForm && textChatInput) {
-        textChatForm.addEventListener('submit', async (e) => {
+        textChatForm.addEventListener('submit', (e) => {
             e.preventDefault();
             const text = textChatInput.value.trim();
             if (!text) return;
-            
             textChatInput.value = '';
-            addBubble('user', text);
-            
-            setPhase('thinking');
-            const result = await sendToAI(text);
-            if (result.reply) addBubble('ai', result.reply);
-            
-            if (result.booked) {
-                playSuccessSound();
-            }
-            
-            setPhase('idle');
+            handleUserMessage(text);
+        });
+    }
+
+    // Render the specialists grid
+    renderDoctors();
+
+    // Quick-action chips → send a canned message
+    document.querySelectorAll('.chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            if (chip.dataset.msg) handleUserMessage(chip.dataset.msg);
+        });
+    });
+
+    // Conversation tools: copy + download
+    const copyBtn = $('copyBtn');
+    const downloadBtn = $('downloadBtn');
+    if (copyBtn) {
+        copyBtn.addEventListener('click', async () => {
+            const text = collectTranscript();
+            if (!text) return;
+            try {
+                await navigator.clipboard.writeText(text);
+                copyBtn.classList.add('copied');
+                setTimeout(() => copyBtn.classList.remove('copied'), 1500);
+            } catch (_) { /* clipboard blocked — ignore */ }
+        });
+    }
+    if (downloadBtn) {
+        downloadBtn.addEventListener('click', () => {
+            const text = collectTranscript();
+            if (!text) return;
+            const header = `MedGuard Clinic — Conversation\n${new Date().toLocaleString()}\n${'─'.repeat(32)}\n\n`;
+            const blob = new Blob([header + text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `medguard-chat-${Date.now()}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
         });
     }
 
@@ -731,6 +857,12 @@ window.addEventListener('DOMContentLoaded', () => {
         DOM.langSwitch.addEventListener('change', (e) => {
             state.language = e.target.checked ? 'ta-IN' : 'en-US';
             if (state.recognition) state.recognition.lang = state.language;
+            
+            // Automatically switch to Browser TTS when Tamil is selected
+            if (state.language === 'ta-IN') {
+                const voiceSwitch = document.getElementById('voiceEngineSwitch');
+                if (voiceSwitch) voiceSwitch.checked = false;
+            }
         });
     }
 
@@ -739,4 +871,182 @@ window.addEventListener('DOMContentLoaded', () => {
     speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
 
     setPhase('idle');
+    setupTitleCardEvents();
 });
+
+// ════════════════════════════════════════════════
+// Title Card Overlay & Audio Sound Effects
+// ════════════════════════════════════════════════
+let titleAudioCtx = null;
+
+function getTitleAudioContext() {
+    if (!titleAudioCtx) {
+        titleAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (titleAudioCtx.state === 'suspended') {
+        titleAudioCtx.resume();
+    }
+    return titleAudioCtx;
+}
+
+// Futuristic launch chime sound (major triad synth chord sweep + shimmer)
+function playLaunchSound() {
+    try {
+        const ctx = getTitleAudioContext();
+        const now = ctx.currentTime;
+        
+        // Frequencies for futuristic chord (C4, E4, G4, C5, E5)
+        const notes = [261.63, 329.63, 392.00, 523.25, 659.25];
+        
+        notes.forEach((freq, index) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            const filter = ctx.createBiquadFilter();
+
+            osc.type = index % 2 === 0 ? 'sine' : 'triangle';
+            osc.frequency.setValueAtTime(freq, now + index * 0.05);
+
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(800, now);
+            filter.frequency.exponentialRampToValueAtTime(4000, now + 0.5);
+
+            gain.gain.setValueAtTime(0, now + index * 0.05);
+            gain.gain.linearRampToValueAtTime(0.12, now + index * 0.05 + 0.08);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 1.2 + index * 0.1);
+
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(ctx.destination);
+
+            osc.start(now + index * 0.05);
+            osc.stop(now + 1.4 + index * 0.1);
+        });
+
+    } catch (e) { console.error('Audio FX error:', e); }
+}
+
+// Subtle futuristic hover blip sound
+function playHoverSound() {
+    try {
+        const ctx = getTitleAudioContext();
+        const now = ctx.currentTime;
+
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, now);
+        osc.frequency.exponentialRampToValueAtTime(1320, now + 0.08);
+
+        gain.gain.setValueAtTime(0.04, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.08);
+    } catch (e) {}
+}
+
+// Title Card Particle Canvas Animation
+function initTitleCardCanvas() {
+    const canvas = document.getElementById('titleCardCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let animationId = null;
+
+    let width = canvas.width = window.innerWidth;
+    let height = canvas.height = window.innerHeight;
+
+    const onResize = () => {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+    };
+    window.removeEventListener('resize', onResize);
+    window.addEventListener('resize', onResize);
+
+    const particles = Array.from({ length: 65 }, () => ({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        vx: (Math.random() - 0.5) * 0.7,
+        vy: (Math.random() - 0.5) * 0.7,
+        radius: Math.random() * 2 + 1,
+        alpha: Math.random() * 0.6 + 0.2
+    }));
+
+    function draw() {
+        ctx.clearRect(0, 0, width, height);
+
+        // Render moving particles
+        particles.forEach((p, i) => {
+            p.x += p.vx;
+            p.y += p.vy;
+
+            if (p.x < 0 || p.x > width) p.vx *= -1;
+            if (p.y < 0 || p.y > height) p.vy *= -1;
+
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(165, 180, 252, ${p.alpha})`;
+            ctx.fill();
+
+            // Connect nearby particles
+            for (let j = i + 1; j < particles.length; j++) {
+                const p2 = particles[j];
+                const dx = p.x - p2.x;
+                const dy = p.y - p2.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist < 130) {
+                    ctx.beginPath();
+                    ctx.moveTo(p.x, p.y);
+                    ctx.lineTo(p2.x, p2.y);
+                    ctx.strokeStyle = `rgba(99, 102, 241, ${(1 - dist / 130) * 0.25})`;
+                    ctx.lineWidth = 0.8;
+                    ctx.stroke();
+                }
+            }
+        });
+
+        const overlay = document.getElementById('titleCardOverlay');
+        if (overlay && !overlay.classList.contains('dismissed') && overlay.style.display !== 'none') {
+            animationId = requestAnimationFrame(draw);
+        }
+    }
+
+    draw();
+}
+
+function setupTitleCardEvents() {
+    const overlay = document.getElementById('titleCardOverlay');
+    const launchBtn = document.getElementById('launchAppBtn');
+    const reopenBtn = document.getElementById('reopenTitleCardBtn');
+
+    initTitleCardCanvas();
+
+    if (launchBtn) {
+        launchBtn.addEventListener('mouseenter', () => playHoverSound());
+        launchBtn.addEventListener('click', () => {
+            playLaunchSound();
+            if (overlay) {
+                overlay.classList.add('dismissed');
+                setTimeout(() => {
+                    overlay.style.display = 'none';
+                }, 650);
+            }
+        });
+    }
+
+    if (reopenBtn) {
+        reopenBtn.addEventListener('click', () => {
+            if (overlay) {
+                overlay.style.display = 'flex';
+                overlay.classList.remove('dismissed');
+                initTitleCardCanvas();
+                playHoverSound();
+            }
+        });
+    }
+}
+
