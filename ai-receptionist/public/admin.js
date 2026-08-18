@@ -344,17 +344,19 @@ function renderLogs() {
 function buildLogEntry(log) {
     const time = new Date(log.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const isBlinkit = log.source === 'Blinkit';
+    const isCodeRed = log.extra?.type === 'code_red';
 
     // Source badge
     let srcClass = 'system-src';
     let srcLabel = log.source || 'System';
-    if (isBlinkit)                        { srcClass = 'blinkit-src'; srcLabel = '🛒 Blinkit'; }
+    if (isCodeRed)                        { srcClass = 'code-red-src'; srcLabel = '🚨 EMERGENCY'; }
+    else if (isBlinkit)                   { srcClass = 'blinkit-src'; srcLabel = '🛒 Blinkit'; }
     else if (log.role === 'user')         { srcClass = 'user-src';    srcLabel = '👤 ' + (log.source || 'Patient'); }
     else if (log.role === 'ai')           { srcClass = 'ai-src';      srcLabel = '🤖 AI'; }
     else if (log.source === 'WhatsApp')   { srcClass = 'user-src';    srcLabel = '💬 WhatsApp'; }
 
     // Role icon
-    const icon = log.role === 'user' ? '👤' : log.role === 'ai' ? '🤖' : isBlinkit ? '🛒' : '⚙️';
+    const icon = log.role === 'emergency' ? '🚨' : log.role === 'user' ? '👤' : log.role === 'ai' ? '🤖' : isBlinkit ? '🛒' : '⚙️';
 
     // Blinkit detail panel
     let blinkitDetail = '';
@@ -374,7 +376,8 @@ function buildLogEntry(log) {
         ? `<div style="font-size:0.65rem;color:#4b5563;margin-top:0.25rem;">IP: ${esc(log.extra.ip)}</div>`
         : '';
 
-    const entryClass = isBlinkit ? 'log-entry blinkit'
+    const entryClass = isCodeRed ? 'log-entry code-red'
+        : isBlinkit ? 'log-entry blinkit'
         : log.role === 'user'    ? 'log-entry user'
         : log.role === 'ai'      ? 'log-entry ai'
         : 'log-entry system';
