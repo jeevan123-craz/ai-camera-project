@@ -254,58 +254,6 @@ app.get('/api/analytics', adminAuth, async (req, res) => {
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ── Rate Limiting for Chat ──
-const chatLimiter = rateLimit({
-    windowMs: 60 * 1000, // 1 minute
-    max: 10, // Limit each IP to 10 requests per minute
-    message: { error: 'Too many requests from this IP, please try again after a minute' },
-    standardHeaders: true,
-    legacyHeaders: false,
-});
-
-// ── Cookie Auth for Admin ──
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'medguard123';
-const AUTH_TOKEN = 'admin_secure_token_123'; // In prod, use JWT or proper sessions
-
-const adminAuth = (req, res, next) => {
-    if (req.cookies && req.cookies.admin_token === AUTH_TOKEN) {
-        next();
-    } else {
-        // If it's an API request, return 401
-        if (req.path.startsWith('/api/')) {
-            return res.status(401).json({ error: 'Unauthorized' });
-        }
-        // Otherwise redirect to login
-        res.redirect('/login.html');
-    }
-};
-
-// Protect admin.html specifically before serving static files
-app.get('/admin.html', adminAuth, (req, res, next) => {
-    next();
-});
-
-// Login Endpoint
-app.post('/api/login', (req, res) => {
-    const { username, password } = req.body;
-    if (username === 'admin' && password === ADMIN_PASSWORD) {
-        res.cookie('admin_token', AUTH_TOKEN, { 
-            httpOnly: true, 
-            maxAge: 24 * 60 * 60 * 1000 // 1 day 
-        });
-        return res.json({ success: true });
-    }
-    res.status(401).json({ error: 'Invalid username or password' });
-});
-
-app.post('/api/logout', (req, res) => {
-    res.clearCookie('admin_token');
-    res.json({ success: true });
-});
-
-// Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
-
 // ── Live Logs Array ──
 const callLogs = [];
 
