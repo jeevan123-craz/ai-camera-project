@@ -275,6 +275,95 @@ const voiceRecordings = [
     }
 ];
 
+function recordCallAudio(callId, patientName, dialPhone, doctorName = 'MedGuard Team', reason = 'General Consultation') {
+    const recordingId = 'rec-' + Date.now();
+    const wavFilename = `${recordingId}.wav`;
+    const wavFilePath = path.join(RECORDINGS_DIR, wavFilename);
+    const audioUrl = `/recordings/${wavFilename}`;
+
+    const recRecord = {
+        id: recordingId,
+        callId,
+        patientName,
+        phone: dialPhone,
+        doctorName,
+        time: new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }),
+        reason,
+        timestamp: new Date().toISOString(),
+        audioUrl,
+        provider: 'Nothing Phone 2a (JIO 4G Cellular) + Live AI Voice',
+        status: 'In Call (Listening & Talking...)'
+    };
+    voiceRecordings.unshift(recRecord);
+    broadcastDashboardUpdate();
+
+    const openlineKey = process.env.OPENLINE_API_KEY || 'medguard-secret-key-2026';
+    const wsUrl = `ws://127.0.0.1:8989/v1/calls/${encodeURIComponent(callId)}/media?mode=listen`;
+
+    try {
+        const ws = new WebSocket(wsUrl, { headers: { 'x-api-key': openlineKey } });
+        const pcmChunks = [];
+        let isFinished = false;
+
+        ws.on('open', () => {
+            console.log(`[CallRecorder] Monitoring and recording live call ${callId}...`);
+        });
+
+        ws.on('message', (data, isBinary) => {
+            if (isBinary && Buffer.isBuffer(data) && data.length > 1) {
+                // Byte 0 is channel (0x01 = remote caller, 0x02 = agent); bytes 1..N is 16kHz PCM audio
+                pcmChunks.push(data.subarray(1));
+            } else if (!isBinary) {
+                try {
+                    const ctrl = JSON.parse(data.toString());
+                    if (ctrl.type === 'stop') {
+                        finishRecording();
+                    }
+                } catch (e) {}
+            }
+        });
+
+        const finishRecording = () => {
+            if (isFinished) return;
+            isFinished = true;
+            try { ws.close(); } catch (e) {}
+            const totalPcm = pcmChunks.length > 0 ? Buffer.concat(pcmChunks) : Buffer.alloc(0);
+
+            // Build standard 44-byte WAV header (16kHz 16-bit mono PCM)
+            const wavHeader = Buffer.alloc(44);
+            const dataLen = totalPcm.length;
+            wavHeader.write('RIFF', 0);
+            wavHeader.writeUInt32LE(36 + dataLen, 4);
+            wavHeader.write('WAVE', 8);
+            wavHeader.write('fmt ', 12);
+            wavHeader.writeUInt32LE(16, 16);
+            wavHeader.writeUInt16LE(1, 20); // PCM format
+            wavHeader.writeUInt16LE(1, 22); // mono
+            wavHeader.writeUInt32LE(16000, 24); // 16kHz
+            wavHeader.writeUInt32LE(32000, 28); // 32000 Bps
+            wavHeader.writeUInt16LE(2, 32);  // 2 bytes block align
+            wavHeader.writeUInt16LE(16, 34); // 16 bits
+            wavHeader.write('data', 36);
+            wavHeader.writeUInt32LE(dataLen, 40);
+
+            fs.writeFileSync(wavFilePath, Buffer.concat([wavHeader, totalPcm]));
+            recRecord.status = 'Completed';
+            console.log(`[CallRecorder] Saved call recording (${dataLen} bytes) to ${wavFilename}`);
+            broadcastDashboardUpdate();
+        };
+
+        ws.on('close', finishRecording);
+        ws.on('error', (err) => {
+            console.warn(`[CallRecorder] Monitor socket error on ${callId}:`, err.message);
+            finishRecording();
+        });
+    } catch (err) {
+        console.error('[CallRecorder] Failed to attach recorder:', err.message);
+    }
+
+    return recRecord;
+}
+
 async function placeConfirmationCall(patientName, patientPhone, doctorName, timeIso, reason) {
     if (!patientPhone) return { success: false, error: 'No phone' };
     const cleanDigits = String(patientPhone).replace(/\D/g, '');
@@ -296,77 +385,12 @@ async function placeConfirmationCall(patientName, patientPhone, doctorName, time
         readableTime = timeIso;
     }
 
-    const naturalScript = `Hello ${patientName}! This is Alex calling from MedGuard Clinic. Your appointment with ${doctorName} has been confirmed for ${readableTime}. Your details are safely saved in our clinic registry. Please arrive 10 minutes early. We look forward to seeing you. Take care and goodbye!`;
-
-    const recordingId = 'rec-' + Date.now();
-    const wavFilename = `${recordingId}.wav`;
-    const wavFilePath = path.join(RECORDINGS_DIR, wavFilename);
-    const audioUrl = `/recordings/${wavFilename}`;
-
-    let pcmBuffer = null;
-    const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
-    const voiceId = process.env.ELEVENLABS_VOICE_ID || 'hpp4J3VqNfWAUOO0d1Us';
-
-    if (elevenLabsKey) {
-        try {
-            const pcmRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=pcm_16000`, {
-                method: 'POST',
-                headers: {
-                    'xi-api-key': elevenLabsKey,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    text: naturalScript,
-                    model_id: 'eleven_flash_v2_5',
-                    voice_settings: { stability: 0.5, similarity_boost: 0.8 }
-                })
-            });
-            if (pcmRes.ok) {
-                pcmBuffer = Buffer.from(await pcmRes.arrayBuffer());
-                // Write standard WAV header (16kHz, 16-bit mono) so audio is playable in browser
-                const wavHeader = Buffer.alloc(44);
-                const dataLen = pcmBuffer.length;
-                wavHeader.write('RIFF', 0);
-                wavHeader.writeUInt32LE(36 + dataLen, 4);
-                wavHeader.write('WAVE', 8);
-                wavHeader.write('fmt ', 12);
-                wavHeader.writeUInt32LE(16, 16);
-                wavHeader.writeUInt16LE(1, 20); // PCM
-                wavHeader.writeUInt16LE(1, 22); // mono
-                wavHeader.writeUInt32LE(16000, 24); // 16kHz
-                wavHeader.writeUInt32LE(32000, 28); // 32000 bytes/sec
-                wavHeader.writeUInt16LE(2, 32);  // 2 bytes/sample
-                wavHeader.writeUInt16LE(16, 34); // 16 bit
-                wavHeader.write('data', 36);
-                wavHeader.writeUInt32LE(dataLen, 40);
-                fs.writeFileSync(wavFilePath, Buffer.concat([wavHeader, pcmBuffer]));
-            } else {
-                console.warn('[ConfirmationCall] ElevenLabs returned error:', await pcmRes.text());
-            }
-        } catch (e) {
-            console.error('[ConfirmationCall] ElevenLabs TTS error:', e.message);
-        }
-    }
-
-    const recRecord = {
-        id: recordingId,
-        patientName,
-        phone: dialPhone,
-        doctorName,
-        time: readableTime,
-        reason,
-        timestamp: new Date().toISOString(),
-        audioUrl,
-        provider: 'Nothing Phone 2a (JIO 4G) + ElevenLabs Voice',
-        status: 'Dialing...'
-    };
-    voiceRecordings.unshift(recRecord);
-    broadcastDashboardUpdate();
-
     const openlineUrl = process.env.OPENLINE_URL || 'http://127.0.0.1:8989';
     const openlineKey = process.env.OPENLINE_API_KEY || 'medguard-secret-key-2026';
 
     try {
+        // Set dynamic conversational instructions for Alex:
+        // She speaks naturally, warmly, and ACTIVELY LISTENS to whatever the patient says!
         await fetch(`${openlineUrl}/v1/agent`, {
             method: 'PUT',
             headers: {
@@ -375,98 +399,52 @@ async function placeConfirmationCall(patientName, patientPhone, doctorName, time
             },
             body: JSON.stringify({
                 ownerName: 'Jeevankishore',
-                about: `You are Alex, the friendly virtual AI receptionist for MedGuard Clinic calling patient ${patientName}.
-You are calling to confirm their newly booked appointment:
+                about: `You are Alex, the friendly virtual AI receptionist for MedGuard Health Clinic calling patient ${patientName} on their phone.
+Appointment Details:
 - Patient Name: ${patientName}
 - Doctor: ${doctorName}
 - Date & Time: ${readableTime}
 - Reason: ${reason}
+- Clinic Address: 123 Health Ave, Medical District, NY 10001 (Mon-Fri 9:00 AM - 6:00 PM)
 
-Instructions for this call:
-1. Greet ${patientName} warmly: "${naturalScript}"
-2. If they ask questions, answer naturally, warmly, and concisely.
-3. Wish them great health and end the call.`
+Call Instructions:
+1. When the call connects, immediately greet ${patientName} warmly: "Hello ${patientName}! This is Alex calling from MedGuard Clinic. I'm calling to confirm your appointment with ${doctorName} on ${readableTime}. How are you doing today?"
+2. Actively listen to whatever ${patientName} says and respond naturally in real time!
+3. If they confirm the appointment, thank them warmly and advise arriving 10 minutes early.
+4. If they want to change or reschedule the appointment, ask for their preferred time and use the reschedule_appointment tool.
+5. If they ask about clinic location, parking, or directions, explain our address (123 Health Ave, Medical District) and offer to email directions using the send_clinic_location tool.
+6. If they need to cancel, politely cancel using the cancel_appointment tool.
+7. Speak concisely and naturally (1 to 2 sentences per response). Never read long robotic paragraphs. Listen carefully!`
             })
         }).catch(() => {});
 
+        // Place physical cellular call via Nothing Phone 2a Jio 4G SIM
         const callRes = await fetch(`${openlineUrl}/v1/calls`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${openlineKey}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ to: dialPhone })
+            body: JSON.stringify({ to: dialPhone, agent: true })
         });
 
         if (callRes.ok) {
             const data = await callRes.json();
             const callId = data.call?.id;
             if (callId) {
-                recRecord.callId = callId;
-                recRecord.status = 'Call Dialing';
-
-                if (pcmBuffer && pcmBuffer.length > 0) {
-                    const wsUrl = `ws://127.0.0.1:8989/v1/calls/${encodeURIComponent(callId)}/media`;
-                    const ws = new WebSocket(wsUrl, { headers: { 'x-api-key': openlineKey } });
-
-                    ws.on('open', () => console.log(`[ElevenLabs Stream] Connected to call media ${callId}`));
-                    ws.on('message', (msg, isBinary) => {
-                        if (!isBinary) {
-                            try {
-                                const control = JSON.parse(msg.toString());
-                                if (control.type === 'start') {
-                                    console.log(`[ElevenLabs Stream] Call active! Streaming ElevenLabs audio to ${dialPhone}...`);
-                                    recRecord.status = 'Playing Voice';
-                                    broadcastDashboardUpdate();
-
-                                    let offset = 0;
-                                    const CHUNK_SIZE = 640;
-                                    const interval = setInterval(() => {
-                                        if (offset >= pcmBuffer.length || ws.readyState !== WebSocket.OPEN) {
-                                            clearInterval(interval);
-                                            console.log(`[ElevenLabs Stream] Finished audio stream for ${callId}`);
-                                            recRecord.status = 'Completed';
-                                            broadcastDashboardUpdate();
-                                            setTimeout(() => {
-                                                fetch(`${openlineUrl}/v1/calls/${callId}/agent`, {
-                                                    method: 'POST',
-                                                    headers: { 'Authorization': `Bearer ${openlineKey}` }
-                                                }).catch(() => {});
-                                            }, 2000);
-                                            return;
-                                        }
-                                        ws.send(pcmBuffer.subarray(offset, offset + CHUNK_SIZE));
-                                        offset += CHUNK_SIZE;
-                                    }, 20);
-                                }
-                            } catch (e) {
-                                console.error('[ElevenLabs Stream] Error:', e);
-                            }
-                        }
-                    });
-                    ws.on('error', (err) => {
-                        console.error('[ElevenLabs Stream] WS error:', err.message);
-                        fetch(`${openlineUrl}/v1/calls/${callId}/agent`, {
-                            method: 'POST',
-                            headers: { 'Authorization': `Bearer ${openlineKey}` }
-                        }).catch(() => {});
-                    });
-                } else {
-                    await fetch(`${openlineUrl}/v1/calls/${callId}/agent`, {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${openlineKey}` }
-                    }).catch(() => {});
-                }
-
-                addLog('OpenLine', 'system', `Initiated automated confirmation call with ElevenLabs voice to ${patientName} at ${dialPhone}`, callId);
-                broadcastDashboardUpdate();
+                // Attach live monitor to record the interactive conversation
+                recordCallAudio(callId, patientName, dialPhone, doctorName, reason);
+                addLog('OpenLine', 'system', `Initiated live interactive cellular call (listening & talking) to ${patientName} at ${dialPhone}`, callId);
                 return { success: true, callId, phone: dialPhone };
             }
+        } else {
+            const errText = await callRes.text();
+            console.error('[ConfirmationCall] OpenLine call failed:', callRes.status, errText);
+            return { success: false, error: errText };
         }
     } catch (err) {
         console.error('[ConfirmationCall] Failed to call:', err.message);
-        recRecord.status = 'Failed: ' + err.message;
-        broadcastDashboardUpdate();
+        return { success: false, error: err.message };
     }
     return { success: false, error: 'Call failed' };
 }
@@ -899,55 +877,61 @@ app.post('/api/call-patient', adminAuth, async (req, res) => {
     const { patientName, phone } = req.body;
     if (!patientName || !phone) return res.status(400).json({ error: 'Patient name and phone are required.' });
 
-    // 1. Try OpenLine Physical SIM Cellular Calling First (Rootless Android Gateway)
+    const cleanDigits = String(phone).replace(/\D/g, '');
+    const dialPhone = cleanDigits.length === 10 ? cleanDigits : (cleanDigits.length > 10 ? cleanDigits.slice(-10) : cleanDigits);
+
+    // 1. Try OpenLine Physical SIM Cellular Calling (Nothing Phone 2a Jio 4G SIM)
     const openlineUrl = process.env.OPENLINE_URL || 'http://127.0.0.1:8989';
     const openlineKey = process.env.OPENLINE_API_KEY || 'medguard-secret-key-2026';
+
     try {
+        // Set dynamic conversational prompt so Alex introduces herself and actively listens to the patient
+        await fetch(`${openlineUrl}/v1/agent`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${openlineKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                ownerName: 'Jeevankishore',
+                about: `You are Alex, the friendly virtual AI receptionist for MedGuard Health Clinic calling patient ${patientName}.
+You are calling to follow up and assist them with their clinic appointments, health checkup, or clinic questions.
+
+Call Instructions:
+1. Greet ${patientName} warmly: "Hello ${patientName}! This is Alex calling from MedGuard Health Clinic. How are you doing today? How can I help you with your health care or appointment?"
+2. Actively listen to whatever ${patientName} says!
+3. If they want to book, reschedule, or cancel appointments, use the respective tools.
+4. If they ask about the clinic address, explain 123 Health Ave, Medical District, NY 10001 (Mon-Fri 9am-6pm) and offer to email directions using send_clinic_location.
+5. Keep answers short, natural, and friendly (1 to 2 sentences). Never dominate or read long paragraphs. Listen attentively!`
+            })
+        }).catch(() => {});
+
         const openlineRes = await fetch(`${openlineUrl}/v1/calls`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${openlineKey}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ to: phone })
+            body: JSON.stringify({ to: dialPhone, agent: true })
         });
+
         if (openlineRes.ok) {
             const data = await openlineRes.json();
             const callId = data.call?.id;
             if (callId) {
-                // Request Gemini AI Agent takeover
-                await fetch(`${openlineUrl}/v1/calls/${callId}/agent`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${openlineKey}` }
-                }).catch(() => {});
-                addLog('OpenLine', 'system', `Initiated Cellular SIM call to ${patientName} at ${phone}`, callId);
-                return res.json({ success: true, callId, provider: 'OpenLine (Nothing Phone 3a/2a SIM)' });
+                // Record the conversation for the Admin Portal
+                recordCallAudio(callId, patientName, dialPhone, 'Admin Outbound Call', 'Patient Followup & Inquiries');
+                addLog('OpenLine', 'system', `Initiated live interactive Cellular SIM call to ${patientName} at ${dialPhone}`, callId);
+                return res.json({ success: true, callId, provider: 'Nothing Phone 2a (JIO 4G Cellular) + Live AI Voice' });
             }
+        } else {
+            const errText = await openlineRes.text();
+            console.error('[OpenLine Outbound Error]:', openlineRes.status, errText);
+            return res.status(500).json({ error: `OpenLine Gateway Error: ${errText}` });
         }
     } catch (e) {
-        console.warn('OpenLine gateway not responding, attempting Twilio fallback:', e.message);
-    }
-
-    // 2. Fallback to Twilio if OpenLine is not running
-    if (!twilioClient) {
-        return res.status(500).json({ error: 'Neither OpenLine nor Twilio is configured on the server.' });
-    }
-
-    try {
-        const baseUrl = getBaseUrl(req);
-        const callUrl = `${baseUrl}/api/voice?patientName=${encodeURIComponent(patientName)}`;
-        
-        const call = await twilioClient.calls.create({
-            url: callUrl,
-            to: phone,
-            from: process.env.TWILIO_PHONE_NUMBER
-        });
-
-        addLog('Admin', 'system', `Initiated outbound call to ${patientName} at ${phone}`, 'System');
-        res.json({ success: true, callSid: call.sid, provider: 'Twilio' });
-    } catch (err) {
-        console.error('Error initiating call:', err);
-        res.status(500).json({ error: 'Failed to initiate call: ' + err.message });
+        console.warn('OpenLine gateway error:', e.message);
+        return res.status(500).json({ error: `OpenLine Gateway unreachable: ${e.message}` });
     }
 });
 
@@ -1061,8 +1045,25 @@ app.post('/api/voice/process', async (req, res) => {
 // ── Admin Dashboard Endpoint ───────────────────────────────────────────────
 app.get('/api/appointments', adminAuth, async (req, res) => {
     try {
-        const appointments = await calendar.getAllAppointments();
-        res.json(appointments);
+        const [appointments, sheetRows] = await Promise.all([
+            calendar.getAllAppointments(),
+            sheets.getAllAppointmentRows().catch(() => [])
+        ]);
+
+        const phoneMap = {};
+        for (const r of sheetRows) {
+            if (r.patient && r.phone && r.phone !== 'N/A' && r.phone !== 'Browser') {
+                phoneMap[r.patient.toLowerCase().trim()] = r.phone;
+            }
+        }
+
+        const enriched = appointments.map(apt => {
+            const cleanName = (apt.patientName || '').toLowerCase().trim();
+            const phone = apt.phone || phoneMap[cleanName] || '';
+            return { ...apt, phone };
+        });
+
+        res.json(enriched);
     } catch (err) {
         console.error('Error fetching appointments:', err);
         res.status(500).json({ error: 'Failed to fetch appointments' });
@@ -1109,10 +1110,11 @@ app.post('/api/phone-call-action', async (req, res) => {
             }
             return res.status(400).json({ error: 'Reschedule failed' });
         } else if (action === 'send_location') {
-            if (email) {
-                await gmail.sendLocationEmail(email, patientName || 'Patient');
-                addLog('OpenLine', 'system', `Sent clinic location email to ${email}`, phone);
-                return res.json({ success: true, message: `Clinic location details emailed to ${email}` });
+            const recipientEmail = email || 'jeevankishore.9490@gmail.com';
+            if (recipientEmail) {
+                await gmail.sendLocationEmail(recipientEmail, patientName || 'Patient');
+                addLog('OpenLine', 'system', `Sent clinic location email to ${recipientEmail}`, phone);
+                return res.json({ success: true, message: `Clinic location details emailed to ${recipientEmail}` });
             }
             return res.status(400).json({ error: 'Email address is required to send location' });
         }

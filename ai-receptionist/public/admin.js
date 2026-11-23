@@ -165,7 +165,7 @@ async function fetchAppointments() {
                 <td>${esc(apt.reason)}</td>
                 <td>
                     <span class="status-badge">Confirmed</span>
-                    <button class="btn-rx" style="color: #6366f1; border-color: rgba(99,102,241,0.3); background: rgba(99,102,241,0.15); margin-right: 0.5rem;" onclick="callPatient('${esc(apt.patientName)}')">📞 Call</button>
+                    <button class="btn-rx" style="color: #db2777; border-color: rgba(219,39,119,0.3); background: rgba(219,39,119,0.1); margin-right: 0.5rem;" onclick="callPatient('${esc(apt.patientName)}', '${esc(apt.phone || '')}')">📞 Call</button>
                     <button class="btn-rx" onclick="openRxModal('${esc(apt.patientName)}', '${esc(apt.time)}', '${esc(apt.email || '')}')">Write Rx</button>
                 </td>
             `;
@@ -327,12 +327,12 @@ async function fetchRecordings() {
 // ════════════════════════════════════════════════
 // Twilio Calling
 // ════════════════════════════════════════════════
-async function callPatient(patientName) {
+async function callPatient(patientName, defaultPhone = '') {
     if (!patientName) {
         patientName = prompt('Enter patient name:');
         if (!patientName) return;
     }
-    const phone = prompt(`Enter phone number to call ${patientName} (e.g. +919876543210):`);
+    const phone = prompt(`Enter phone number to call ${patientName} via Nothing Phone 2a (JIO 4G SIM):`, defaultPhone || '9442922888');
     if (!phone) return;
 
     try {
