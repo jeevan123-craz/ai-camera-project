@@ -630,8 +630,38 @@ app.post('/api/call-patient', adminAuth, async (req, res) => {
     const { patientName, phone } = req.body;
     if (!patientName || !phone) return res.status(400).json({ error: 'Patient name and phone are required.' });
 
+    // 1. Try OpenLine Physical SIM Cellular Calling First (Rootless Android Gateway)
+    const openlineUrl = process.env.OPENLINE_URL || 'http://127.0.0.1:8989';
+    const openlineKey = process.env.OPENLINE_API_KEY || 'medguard-secret-key-2026';
+    try {
+        const openlineRes = await fetch(`${openlineUrl}/v1/calls`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${openlineKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ to: phone })
+        });
+        if (openlineRes.ok) {
+            const data = await openlineRes.json();
+            const callId = data.call?.id;
+            if (callId) {
+                // Request Gemini AI Agent takeover
+                await fetch(`${openlineUrl}/v1/calls/${callId}/agent`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${openlineKey}` }
+                }).catch(() => {});
+                addLog('OpenLine', 'system', `Initiated Cellular SIM call to ${patientName} at ${phone}`, callId);
+                return res.json({ success: true, callId, provider: 'OpenLine (Nothing Phone 3a/2a SIM)' });
+            }
+        }
+    } catch (e) {
+        console.warn('OpenLine gateway not responding, attempting Twilio fallback:', e.message);
+    }
+
+    // 2. Fallback to Twilio if OpenLine is not running
     if (!twilioClient) {
-        return res.status(500).json({ error: 'Twilio is not configured on the server.' });
+        return res.status(500).json({ error: 'Neither OpenLine nor Twilio is configured on the server.' });
     }
 
     try {
@@ -645,7 +675,7 @@ app.post('/api/call-patient', adminAuth, async (req, res) => {
         });
 
         addLog('Admin', 'system', `Initiated outbound call to ${patientName} at ${phone}`, 'System');
-        res.json({ success: true, callSid: call.sid });
+        res.json({ success: true, callSid: call.sid, provider: 'Twilio' });
     } catch (err) {
         console.error('Error initiating call:', err);
         res.status(500).json({ error: 'Failed to initiate call: ' + err.message });
