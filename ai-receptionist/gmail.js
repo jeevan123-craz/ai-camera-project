@@ -141,4 +141,20 @@ async function sendPrescriptionEmail(toEmail, { patientName, doctorName, diagnos
     return sendRaw(toEmail, '📋 Your Prescription — MedGuard Clinic', wrapEmailShell('Prescription Ready', '', body));
 }
 
-module.exports = { sendAppointmentConfirmation, sendPrescriptionEmail, tokenFromEventId, isValidEmail };
+async function sendLocationEmail(toEmail, patientName = 'Valued Patient') {
+    if (!isValidEmail(toEmail)) return false;
+    const body = `
+        <p style="margin:0 0 16px;">Hello ${patientName},</p>
+        <p style="margin:0 0 16px;">Here are the location and visiting details you requested for <strong>MedGuard Clinic</strong>:</p>
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:16px; margin-bottom:20px;">
+            <p style="margin:0 0 8px;">📍 <strong>Address:</strong> 123 Health Ave, Medical District, NY 10001</p>
+            <p style="margin:0 0 8px;">🕒 <strong>Clinic Hours:</strong> Monday – Friday, 9:00 AM – 6:00 PM | Saturday, 10:00 AM – 2:00 PM</p>
+            <p style="margin:0 0 8px;">📞 <strong>Emergency Hotline:</strong> 911 or +1-800-MED-HELP</p>
+            <p style="margin:0;">🚗 <strong>Parking:</strong> Free patient parking available in the clinic lot.</p>
+        </div>
+        <p style="margin:0 0 16px;">If you have an appointment, please arrive 10 minutes before your scheduled slot. We look forward to seeing you!</p>
+    `;
+    return sendRaw(toEmail, '📍 MedGuard Clinic Location & Visiting Information', wrapEmailShell('Clinic Location & Directions', '', body));
+}
+
+module.exports = { sendAppointmentConfirmation, sendPrescriptionEmail, sendLocationEmail, tokenFromEventId, isValidEmail };

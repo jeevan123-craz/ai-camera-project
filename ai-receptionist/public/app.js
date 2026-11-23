@@ -35,6 +35,7 @@ const state = {
     phase:        'idle',   // 'idle' | 'listening' | 'thinking' | 'speaking'
     callActive:   false,
     sessionId:    null,
+    phoneNumber:  sessionStorage.getItem('mg_patient_phone') || '',
     recognition:  null,
     processing:   false,    // guard: prevent double-send
     language:     'en-US',  // 'en-US' or 'ta-IN'
@@ -372,6 +373,13 @@ async function handleUserMessage(text) {
     if (!text || state.processing) return;
     state.processing = true;
 
+    // Check if user provided their phone number directly
+    const pMatch = text.match(/(?:\+?91[\s-]?)?([6-9]\d{9})/);
+    if (pMatch) {
+        state.phoneNumber = pMatch[1];
+        sessionStorage.setItem('mg_patient_phone', state.phoneNumber);
+    }
+
     addBubble('user', text);
     playMessageSentSound();
 
@@ -380,6 +388,25 @@ async function handleUserMessage(text) {
     const result = await sendToAI(text);
     removeTypingIndicator();
     if (result.reply) addBubble('ai', result.reply, false, result.error);
+
+    if (result.callInitiated) {
+        const callCard = document.createElement('div');
+        callCard.className = 'bubble ai';
+        callCard.innerHTML = `
+            <div class="bubble-label">📞 Live Cellular Confirmation Call</div>
+            <div class="bubble-text" style="border-left: 3px solid #ec4899; background: rgba(236,72,153,0.08); padding: 0.9rem;">
+                <div style="font-weight: 700; color: #ec4899; font-size: 0.95rem; margin-bottom: 0.3rem;">🚀 Automated Confirmation Call Ringing!</div>
+                <div style="font-size: 0.86rem; color: #f1f5f9; line-height: 1.5;">
+                    Our Nothing Phone 2a cellular gateway is dialing <strong>+91 ${result.phone || state.phoneNumber}</strong> right now with <strong>ElevenLabs Voice</strong>.
+                </div>
+                <div style="font-size: 0.8rem; color: #f472b6; margin-top: 0.4rem;">
+                    📲 Please pick up your phone to hear your appointment details confirmed live!
+                </div>
+            </div>
+        `;
+        DOM.transcriptBody.appendChild(callCard);
+        DOM.transcriptBody.scrollTop = DOM.transcriptBody.scrollHeight;
+    }
 
     if (result.booked)      playSuccessSound();
     else if (result.error)  playErrorSound();
@@ -393,13 +420,20 @@ async function sendToAI(message) {
         const res = await fetch('/chat', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ sessionId: state.sessionId, message, language: state.language }),
+            body:    JSON.stringify({ 
+                sessionId: state.sessionId, 
+                message, 
+                language: state.language,
+                phone: state.phoneNumber 
+            }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         return {
             reply: data.reply || '',
-            booked: !!data.booked
+            booked: !!data.booked,
+            callInitiated: !!data.callInitiated,
+            phone: data.phone || state.phoneNumber
         };
     } catch (err) {
         console.error('AI request failed:', err);
@@ -494,7 +528,9 @@ async function handleMicClick() {
         playStartCallSound();
         if (DOM.endCallBtn) DOM.endCallBtn.classList.remove('hidden');
 
-        const greeting = "Hello! I am Alex, assistant of Jeevankishore from MedGuard Clinic. How can I help you today?";
+        const greeting = state.phoneNumber 
+            ? "Hello! I am Alex, assistant of Jeevankishore from MedGuard Clinic. How can I help you today?" 
+            : "Hello! I am Alex from MedGuard Clinic. Welcome! Could you please share your phone number so we can confirm your appointment, or tell me how I can help you today?";
         addBubble('ai', greeting);
         await speak(greeting);
         if (state.callActive) startListening();
@@ -786,12 +822,79 @@ function collectTranscript() {
 }
 
 // ════════════════════════════════════════════════
+// Welcome & Patient Phone Capture Flow
+// ════════════════════════════════════════════════
+function displayWelcomeFlow() {
+    if (DOM.transcriptBody.querySelectorAll('.bubble').length > 0) return;
+    DOM.transcriptEmpty.classList.add('hidden');
+
+    const savedPhone = sessionStorage.getItem('mg_patient_phone') || state.phoneNumber || '';
+    state.phoneNumber = savedPhone;
+
+    const welcomeHtml = `
+        <div class="welcome-box">
+            <p style="font-size: 0.95rem;"><strong>Hello! I am Alex</strong>, assistant of Jeevankishore from <strong>MedGuard Clinic</strong>. Welcome! 🏥</p>
+            <p style="margin-top:0.45rem; font-size:0.85rem; color:var(--text-muted); line-height: 1.5;">
+                To keep your consultation records synced and receive an <strong>instant confirmation call</strong> via our SIM gateway, please verify your mobile number below:
+            </p>
+            <div class="chat-phone-card" id="chatPhoneCard">
+                <div class="phone-input-group">
+                    <span class="phone-prefix">🇮🇳 +91</span>
+                    <input type="tel" id="welcomePhoneInput" placeholder="Enter 10-digit mobile" maxlength="10" value="${savedPhone}">
+                    <button id="savePhoneBtn" class="phone-save-btn">${savedPhone ? 'Update' : 'Continue ➔'}</button>
+                </div>
+                <div class="phone-status-msg" id="phoneStatusMsg">${savedPhone ? '✅ Phone number active: +91 ' + savedPhone : ''}</div>
+            </div>
+            <p style="margin-top:0.6rem; font-size:0.82rem; color:var(--text-muted);">
+                How can I assist you today? You can ask about our 12 specialists, check available slots, or share your symptoms.
+            </p>
+        </div>
+    `;
+
+    const el = document.createElement('div');
+    el.className = 'bubble ai welcome-bubble';
+    el.innerHTML = `
+        <div class="bubble-label">🤖 MedGuard AI · Receptionist</div>
+        <div class="bubble-text">${welcomeHtml}</div>
+    `;
+    DOM.transcriptBody.appendChild(el);
+    DOM.transcriptBody.scrollTop = DOM.transcriptBody.scrollHeight;
+
+    const saveBtn = document.getElementById('savePhoneBtn');
+    const phoneInput = document.getElementById('welcomePhoneInput');
+    const statusMsg = document.getElementById('phoneStatusMsg');
+    if (saveBtn && phoneInput) {
+        saveBtn.addEventListener('click', () => {
+            const val = phoneInput.value.replace(/\D/g, '');
+            if (val.length < 10) {
+                if (statusMsg) {
+                    statusMsg.textContent = '⚠️ Please enter a valid 10-digit mobile number.';
+                    statusMsg.style.color = '#f43f5e';
+                }
+                return;
+            }
+            state.phoneNumber = val.slice(-10);
+            sessionStorage.setItem('mg_patient_phone', state.phoneNumber);
+            if (statusMsg) {
+                statusMsg.textContent = `✅ Saved (+91 ${state.phoneNumber})! Our AI assistant will call this number on confirmation.`;
+                statusMsg.style.color = '#10b981';
+            }
+            playSuccessSound();
+        });
+        phoneInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') saveBtn.click();
+        });
+    }
+}
+
+// ════════════════════════════════════════════════
 // Boot
 // ════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', () => {
     initSession();
     initWebSocket();
     state.recognition = checkSpeechSupport() ? buildRecognition(checkSpeechSupport()) : null;
+    displayWelcomeFlow();
     
     // Add event listener for Text Chat
     const textChatForm = $('textChatForm');
@@ -1033,6 +1136,7 @@ function setupTitleCardEvents() {
                 overlay.classList.add('dismissed');
                 setTimeout(() => {
                     overlay.style.display = 'none';
+                    displayWelcomeFlow();
                 }, 650);
             }
         });

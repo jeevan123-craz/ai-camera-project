@@ -7,41 +7,41 @@
     <link rel="stylesheet" href="admin.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        /* ── Live Logs ── */
+        /* ── Live Logs (White & Pink) ── */
         .logs-section { margin-top: 2rem; }
         .logs-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; }
-        .logs-title { font-size:1rem; font-weight:600; color:#e2e8f0; }
-        .logs-badge { font-size:0.75rem; background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); color:#818cf8; padding:0.2rem 0.65rem; border-radius:99px; font-weight:600; }
+        .logs-title { font-size:1.15rem; font-weight:700; color:#1e293b; }
+        .logs-badge { font-size:0.75rem; background:#fce7f3; border:1px solid #fbcfe8; color:#db2777; padding:0.2rem 0.65rem; border-radius:99px; font-weight:700; }
         .log-filter-row { display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:1rem; }
-        .log-filter-btn { padding:0.35rem 0.9rem; border-radius:99px; font-size:0.76rem; font-weight:600; cursor:pointer; border:1px solid rgba(255,255,255,0.12); background:transparent; color:#94a3b8; transition:all 0.2s; font-family:'Outfit',sans-serif; }
-        .log-filter-btn.active { background:rgba(99,102,241,0.2); border-color:rgba(99,102,241,0.45); color:#818cf8; }
-        .log-filter-btn:hover:not(.active) { border-color:rgba(255,255,255,0.25); color:#e2e8f0; }
-        .logs-box { background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.07); border-radius:12px; padding:1rem; max-height:380px; overflow-y:auto; display:flex; flex-direction:column; gap:0.5rem; }
+        .log-filter-btn { padding:0.35rem 0.9rem; border-radius:99px; font-size:0.76rem; font-weight:600; cursor:pointer; border:1px solid rgba(244,114,182,0.35); background:#ffffff; color:#64748b; transition:all 0.2s; font-family:'Outfit',sans-serif; }
+        .log-filter-btn.active { background:#fce7f3; border-color:#ec4899; color:#db2777; font-weight:700; }
+        .log-filter-btn:hover:not(.active) { border-color:#ec4899; color:#db2777; }
+        .logs-box { background:#ffffff; border:1px solid rgba(244,114,182,0.25); border-radius:12px; padding:1rem; max-height:380px; overflow-y:auto; display:flex; flex-direction:column; gap:0.5rem; box-shadow:0 8px 24px rgba(236,72,153,0.06); }
         .logs-box::-webkit-scrollbar { width:4px; }
         .logs-box::-webkit-scrollbar-track { background:transparent; }
-        .logs-box::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:4px; }
+        .logs-box::-webkit-scrollbar-thumb { background:rgba(244,114,182,0.3); border-radius:4px; }
 
         /* Log Entry */
-        .log-entry { padding:0.7rem 1rem; border-radius:8px; border:1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.025); font-size:0.83rem; line-height:1.5; animation:fadeIn 0.3s ease; }
-        .log-entry.blinkit { border-left:3px solid #fb923c; background:rgba(251,146,60,0.06); border-color:rgba(251,146,60,0.2); }
+        .log-entry { padding:0.75rem 1rem; border-radius:8px; border:1px solid #fce7f3; background:#fff5f9; font-size:0.83rem; line-height:1.5; animation:fadeIn 0.3s ease; }
+        .log-entry.blinkit { border-left:3px solid #fb923c; background:rgba(251,146,60,0.06); border-color:rgba(251,146,60,0.25); }
         .log-entry.blinkit:hover { background:rgba(251,146,60,0.1); }
-        .log-entry.user { border-left:3px solid #6366f1; }
+        .log-entry.user { border-left:3px solid #ec4899; }
         .log-entry.ai { border-left:3px solid #10b981; }
-        .log-entry.system { border-left:3px solid #94a3b8; }
+        .log-entry.system { border-left:3px solid #f472b6; }
         .log-meta { display:flex; gap:0.6rem; align-items:center; margin-bottom:0.3rem; flex-wrap:wrap; }
         .log-source { font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; padding:0.15rem 0.5rem; border-radius:4px; }
-        .log-source.blinkit-src { background:rgba(251,146,60,0.15); color:#fb923c; }
-        .log-source.user-src { background:rgba(99,102,241,0.15); color:#818cf8; }
-        .log-source.ai-src { background:rgba(16,185,129,0.15); color:#10b981; }
-        .log-source.system-src { background:rgba(148,163,184,0.15); color:#94a3b8; }
-        .log-time { font-size:0.72rem; color:#4b5563; margin-left:auto; }
-        .log-text { color:#cbd5e1; }
-        .log-text strong { color:#f1f5f9; }
+        .log-source.blinkit-src { background:rgba(251,146,60,0.15); color:#ea580c; }
+        .log-source.user-src { background:#fce7f3; color:#db2777; }
+        .log-source.ai-src { background:rgba(16,185,129,0.15); color:#059669; }
+        .log-source.system-src { background:rgba(244,114,182,0.15); color:#ec4899; }
+        .log-time { font-size:0.72rem; color:#94a3b8; margin-left:auto; }
+        .log-text { color:#334155; }
+        .log-text strong { color:#0f172a; }
 
         /* Blinkit order detail box */
-        .blinkit-detail { margin-top:0.5rem; background:rgba(0,0,0,0.2); border:1px solid rgba(251,146,60,0.15); border-radius:6px; padding:0.6rem 0.85rem; font-size:0.78rem; color:#94a3b8; line-height:1.8; }
-        .blinkit-detail span { color:#fb923c; font-weight:600; }
-        .blinkit-badge { display:inline-flex; align-items:center; gap:0.3rem; background:rgba(251,146,60,0.12); border:1px solid rgba(251,146,60,0.3); color:#fb923c; font-size:0.72rem; font-weight:700; padding:0.2rem 0.6rem; border-radius:99px; }
+        .blinkit-detail { margin-top:0.5rem; background:#fff; border:1px solid rgba(251,146,60,0.25); border-radius:6px; padding:0.6rem 0.85rem; font-size:0.78rem; color:#475569; line-height:1.8; }
+        .blinkit-detail span { color:#ea580c; font-weight:600; }
+        .blinkit-badge { display:inline-flex; align-items:center; gap:0.3rem; background:rgba(251,146,60,0.12); border:1px solid rgba(251,146,60,0.3); color:#ea580c; font-size:0.72rem; font-weight:700; padding:0.2rem 0.6rem; border-radius:99px; }
 
         @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
 
@@ -50,34 +50,8 @@
         .ws-dot.online { background:#10b981; box-shadow:0 0 6px rgba(16,185,129,0.4); animation:wsPulse 2s ease-in-out infinite; }
         @keyframes wsPulse { 0%,100%{opacity:1} 50%{opacity:.5} }
         
-        /* Modal */
-        .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); backdrop-filter:blur(4px); z-index:1000; justify-content:center; align-items:center; }
-        .modal.active { display:flex; }
-        .modal-content { background:#1e293b; padding:2rem; border-radius:12px; width:100%; max-width:600px; border:1px solid rgba(255,255,255,0.1); box-shadow:0 10px 25px rgba(0,0,0,0.5); }
-        .modal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; }
-        .modal-title { font-size:1.25rem; font-weight:600; color:#f8fafc; }
-        .close-btn { background:none; border:none; color:#94a3b8; font-size:1.5rem; cursor:pointer; }
-        .close-btn:hover { color:#f8fafc; }
-        .form-group { margin-bottom:1rem; }
-        .form-group label { display:block; font-size:0.85rem; color:#94a3b8; margin-bottom:0.4rem; }
-        .form-control { width:100%; padding:0.75rem; border-radius:6px; border:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.2); color:#f8fafc; font-family:'Outfit',sans-serif; }
-        .form-control:focus { outline:none; border-color:#6366f1; }
-        .btn-primary { background:#6366f1; color:white; border:none; padding:0.75rem 1.5rem; border-radius:6px; font-weight:600; cursor:pointer; width:100%; transition:background 0.2s; }
-        .btn-primary:hover { background:#4f46e5; }
-        .btn-rx { background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.3); padding:0.3rem 0.8rem; border-radius:99px; font-size:0.75rem; font-weight:600; cursor:pointer; margin-left:0.5rem; transition:all 0.2s; }
-        .btn-rx:hover { background:rgba(16,185,129,0.25); border-color:#10b981; color:#fff; }
-
-        /* ── Our Doctors ── */
-        .doctors-section { margin-top: 2rem; }
-        .doctors-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; }
-        .doctors-title { font-size:1rem; font-weight:600; color:#e2e8f0; }
-        .doctors-badge { font-size:0.75rem; background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); color:#818cf8; padding:0.2rem 0.65rem; border-radius:99px; font-weight:600; }
-        .doctors-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:1rem; }
-        .doctor-card { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:1.1rem 0.75rem; display:flex; flex-direction:column; align-items:center; text-align:center; transition:all 0.2s; }
-        .doctor-card:hover { background:rgba(255,255,255,0.05); border-color:rgba(99,102,241,0.3); transform:translateY(-2px); }
-        .doctor-photo { width:72px; height:72px; border-radius:50%; object-fit:cover; margin-bottom:0.75rem; background:rgba(255,255,255,0.08); border:2px solid rgba(99,102,241,0.3); }
-        .doctor-name { font-size:0.88rem; font-weight:600; color:#f1f5f9; margin-bottom:0.35rem; }
-        .doctor-specialty { font-size:0.72rem; color:#818cf8; background:rgba(99,102,241,0.12); padding:0.2rem 0.6rem; border-radius:99px; }
+        .btn-rx { background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; padding:0.3rem 0.8rem; border-radius:99px; font-size:0.75rem; font-weight:600; cursor:pointer; margin-left:0.5rem; transition:all 0.2s; }
+        .btn-rx:hover { background:#bbf7d0; color:#166534; }
     </style>
 </head>
 <body>
@@ -115,9 +89,9 @@
             </nav>
 
             <div style="padding: 0 1.5rem; margin-top: 1.5rem; margin-bottom: 1rem;">
-                <button class="btn-primary" style="background: rgba(99,102,241,0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.3); width: 100%; text-align: left; padding: 0.8rem 1.2rem; display: flex; align-items: center; gap: 0.8rem; border-radius: 8px; cursor: pointer; transition: all 0.2s; font-family: 'Outfit', sans-serif; font-weight: 600;"
-                        onmouseover="this.style.background='rgba(99,102,241,0.25)'; this.style.borderColor='#818cf8'; this.style.color='#fff';"
-                        onmouseout="this.style.background='rgba(99,102,241,0.15)'; this.style.borderColor='rgba(99,102,241,0.3)'; this.style.color='#818cf8';"
+                <button class="btn-primary" style="background: linear-gradient(135deg, #ec4899, #db2777); color: #fff; border: none; width: 100%; text-align: left; padding: 0.8rem 1.2rem; display: flex; align-items: center; gap: 0.8rem; border-radius: 10px; cursor: pointer; transition: all 0.2s; font-family: 'Outfit', sans-serif; font-weight: 600; box-shadow: 0 4px 15px rgba(236, 72, 153, 0.3);"
+                        onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(236,72,153,0.45)';"
+                        onmouseout="this.style.transform='none'; this.style.boxShadow='0 4px 15px rgba(236, 72, 153, 0.3)';"
                         onclick="callPatient()">
                     <span style="font-size: 1.2rem;">📞</span> Call Patient
                 </button>
@@ -132,6 +106,20 @@
                     <div class="status-indicator">
                         <div class="dot pulse"></div>
                         <span id="wsStatusLabel">System Online</span>
+                    </div>
+                </div>
+
+                <div class="status-card" id="cellular-gateway-card">
+                    <div class="status-card-head">
+                        <span class="status-card-icon">📱</span>
+                        <h4>SIM Voice Gateway</h4>
+                    </div>
+                    <div class="status-indicator">
+                        <div class="dot pulse" id="cellularDot" style="background: #10b981; box-shadow: 0 0 10px #10b981;"></div>
+                        <span id="cellularStatusLabel">Checking SIM...</span>
+                    </div>
+                    <div id="cellularDetails" style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.4rem;">
+                        Nothing Phone 2a · JIO 4G
                     </div>
                 </div>
 
@@ -269,6 +257,33 @@
                         <tbody id="appointments-body">
                             <tr>
                                 <td colspan="4" class="loading-state">Loading appointments...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ══ VOICE CALL RECORDINGS & AUDIO LOGS ══ -->
+            <div class="recordings-section" style="margin-top: 2rem;">
+                <div class="doctors-header">
+                    <div class="doctors-title">🎙️ SIM Voice Recordings &amp; AI Phone Calls</div>
+                    <span class="doctors-badge" id="recordingsCountBadge">0 Calls</span>
+                </div>
+                <div class="table-container glow-card">
+                    <table class="glass-table">
+                        <thead>
+                            <tr>
+                                <th>Patient Name</th>
+                                <th>Phone Number</th>
+                                <th>Call Type &amp; Voice</th>
+                                <th>Date &amp; Time</th>
+                                <th>Status</th>
+                                <th>Voice Audio</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recordings-body">
+                            <tr>
+                                <td colspan="6" class="loading-state">No call recordings yet. Confirmation calls placed to patients will appear here with instant audio playback!</td>
                             </tr>
                         </tbody>
                     </table>

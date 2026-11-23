@@ -1028,3 +1028,61 @@ body {
     color: var(--text-muted);
 }
 
+/* ── Welcome Phone Prompt Card ── */
+.chat-phone-card {
+    margin-top: 0.75rem;
+    padding: 0.85rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(236, 72, 153, 0.35);
+    border-radius: 12px;
+}
+.phone-input-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+.phone-prefix {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #f472b6;
+    background: rgba(236, 72, 153, 0.12);
+    padding: 0.45rem 0.65rem;
+    border-radius: 8px;
+    border: 1px solid rgba(236, 72, 153, 0.25);
+}
+#welcomePhoneInput {
+    flex: 1;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    padding: 0.45rem 0.75rem;
+    color: #fff;
+    font-size: 0.88rem;
+    font-family: 'Outfit', sans-serif;
+}
+#welcomePhoneInput:focus {
+    outline: none;
+    border-color: #ec4899;
+}
+.phone-save-btn {
+    background: linear-gradient(135deg, #ec4899, #db2777);
+    color: white;
+    border: none;
+    padding: 0.45rem 0.95rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.15s;
+    font-family: 'Outfit', sans-serif;
+}
+.phone-save-btn:hover {
+    transform: scale(1.04);
+}
+.phone-status-msg {
+    margin-top: 0.4rem;
+    font-size: 0.76rem;
+    color: #10b981;
+}
+
+

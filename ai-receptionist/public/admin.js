@@ -138,6 +138,7 @@ async function fetchAppointments() {
             return;
         }
         const appointments = await response.json();
+        fetchRecordings();
 
         // Stats
         animateCount(document.getElementById('total-bookings'), appointments.length);
@@ -203,10 +204,13 @@ function initWebSocket() {
 
     ws.onmessage = ({ data }) => {
         try {
-            const { appointments = [], availableSlots = [], logs = [], whatsappStatus } = JSON.parse(data);
+            const { appointments = [], availableSlots = [], logs = [], recordings = [], whatsappStatus } = JSON.parse(data);
 
             // Update appointments silently
             updateAppointmentsFromWS(appointments);
+
+            // Update voice recordings
+            updateRecordings(recordings);
 
             // Play a notification sound + toast when a genuinely new log entry arrives
             // (not on every periodic WS push — only when the newest entry actually changed).
@@ -256,6 +260,68 @@ function initWebSocket() {
             console.error('WebSocket parse error:', e);
         }
     };
+}
+
+// ════════════════════════════════════════════════
+// Voice Call Recordings Rendering
+// ════════════════════════════════════════════════
+function updateRecordings(recordings = []) {
+    const tbody = document.getElementById('recordings-body');
+    const badge = document.getElementById('recordingsCountBadge');
+    if (badge) badge.textContent = `${recordings.length} Call${recordings.length === 1 ? '' : 's'}`;
+    if (!tbody) return;
+
+    if (!recordings || !recordings.length) {
+        tbody.innerHTML = `<tr><td colspan="6" class="loading-state">No call recordings yet. Automated confirmation calls placed to patients will appear here!</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = recordings.map(r => `
+        <tr>
+            <td style="font-weight:600; color:#1e293b;">
+                <span style="font-size:1.1rem; margin-right:4px;">👤</span>${escapeHtml(r.patientName || 'Patient')}
+            </td>
+            <td style="color:#ec4899; font-weight:600; font-family:monospace;">
+                +91 ${escapeHtml(r.phone || 'N/A')}
+            </td>
+            <td>
+                <span class="recording-tag" style="background:#fdf2f8; color:#be185d; border:1px solid #fbcfe8; padding:3px 8px; border-radius:99px; font-size:0.75rem; font-weight:600;">
+                    📱 SIM · ElevenLabs
+                </span>
+            </td>
+            <td style="font-size:0.8rem; color:#64748b;">
+                ${escapeHtml(r.time || new Date(r.timestamp).toLocaleTimeString())}
+            </td>
+            <td>
+                <span class="status-badge" style="background:${(r.status || '').includes('Fail') ? '#ffe4e6' : '#dcfce7'}; color:${(r.status || '').includes('Fail') ? '#e11d48' : '#15803d'}; border-radius:99px; padding:3px 8px; font-size:0.75rem; font-weight:600;">
+                    ${escapeHtml(r.status || 'Active')}
+                </span>
+            </td>
+            <td>
+                ${r.audioUrl ? `
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <audio controls preload="none" style="height:32px; width:220px; outline:none; border-radius:16px;">
+                            <source src="${r.audioUrl}" type="${r.audioUrl.endsWith('.wav') ? 'audio/wav' : 'audio/mpeg'}">
+                            Your browser does not support audio playback.
+                        </audio>
+                        <a href="${r.audioUrl}" download target="_blank" style="color:#ec4899; text-decoration:none; font-size:1.1rem;" title="Download recording">⬇️</a>
+                    </div>
+                ` : '<span style="color:#94a3b8; font-size:0.8rem;">No audio</span>'}
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function fetchRecordings() {
+    try {
+        const res = await fetch('/api/recordings');
+        if (res.ok) {
+            const data = await res.json();
+            updateRecordings(data);
+        }
+    } catch (e) {
+        console.warn('Failed to fetch recordings:', e);
+    }
 }
 
 // ════════════════════════════════════════════════
@@ -565,7 +631,7 @@ async function startGoogleReauth() {
 // ════════════════════════════════════════════════
 const charts = {}; // id -> Chart instance, so refreshes update in place
 
-const CHART_COLORS = ['#818cf8', '#34d399', '#fbbf24', '#f472b6', '#38bdf8', '#a78bfa', '#fb923c', '#4ade80'];
+const CHART_COLORS = ['#ec4899', '#f43f5e', '#fb7185', '#f472b6', '#db2777', '#be185d', '#fda4af', '#f43f5e'];
 
 function upsertChart(id, config) {
     const canvas = document.getElementById(id);
@@ -580,7 +646,7 @@ function upsertChart(id, config) {
 
 const AXIS_STYLE = {
     ticks: { color: '#64748b', font: { size: 11 } },
-    grid: { color: 'rgba(255,255,255,0.05)' },
+    grid: { color: 'rgba(244, 114, 182, 0.15)' },
 };
 
 async function fetchAnalytics() {
@@ -598,10 +664,10 @@ async function fetchAnalytics() {
                 labels: a.trend.map(t => t.day),
                 datasets: [{
                     data: a.trend.map(t => t.count),
-                    borderColor: '#818cf8',
-                    backgroundColor: 'rgba(129,140,248,0.12)',
+                    borderColor: '#ec4899',
+                    backgroundColor: 'rgba(236,72,153,0.12)',
                     fill: true, tension: 0.35,
-                    pointRadius: 3, pointBackgroundColor: '#818cf8',
+                    pointRadius: 4, pointBackgroundColor: '#db2777',
                 }],
             },
             options: {
@@ -676,8 +742,41 @@ async function fetchAnalytics() {
 // ════════════════════════════════════════════════
 // Boot
 // ════════════════════════════════════════════════
+async function updateCellularStatus() {
+    try {
+        const res = await fetch('/api/openline/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        const label = document.getElementById('cellularStatusLabel');
+        const details = document.getElementById('cellularDetails');
+        const dot = document.getElementById('cellularDot');
+        if (data.online && data.device) {
+            const h = data.device.health || {};
+            if (label) label.textContent = 'SIM Online (Active)';
+            if (details) details.textContent = `${data.device.name || 'Android'} · ${h.carrier || 'Cellular'} · ${h.battery ? h.battery + '%' : 'Ready'}`;
+            if (dot) {
+                dot.style.background = '#10b981';
+                dot.style.boxShadow = '0 0 10px #10b981';
+            }
+        } else {
+            if (label) label.textContent = 'SIM Gateway Off';
+            if (details) details.textContent = 'Connect phone to OpenLine';
+            if (dot) {
+                dot.style.background = '#f59e0b';
+                dot.style.boxShadow = '0 0 10px #f59e0b';
+            }
+        }
+    } catch (e) {
+        // ignore
+    }
+}
+
 fetchAppointments();
 setInterval(fetchAppointments, 30000);
+fetchRecordings();
+setInterval(fetchRecordings, 15000);
+updateCellularStatus();
+setInterval(updateCellularStatus, 15000);
 initWebSocket();
 renderDoctors();
 checkGoogleAuth();
