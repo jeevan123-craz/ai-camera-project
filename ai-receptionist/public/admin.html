@@ -23,25 +23,17 @@
 
         /* Log Entry */
         .log-entry { padding:0.75rem 1rem; border-radius:8px; border:1px solid #fce7f3; background:#fff5f9; font-size:0.83rem; line-height:1.5; animation:fadeIn 0.3s ease; }
-        .log-entry.blinkit { border-left:3px solid #fb923c; background:rgba(251,146,60,0.06); border-color:rgba(251,146,60,0.25); }
-        .log-entry.blinkit:hover { background:rgba(251,146,60,0.1); }
         .log-entry.user { border-left:3px solid #ec4899; }
         .log-entry.ai { border-left:3px solid #10b981; }
-        .log-entry.system { border-left:3px solid #f472b6; }
+        .log-entry.system { border-left:3px solid #3b82f6; }
         .log-meta { display:flex; gap:0.6rem; align-items:center; margin-bottom:0.3rem; flex-wrap:wrap; }
         .log-source { font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; padding:0.15rem 0.5rem; border-radius:4px; }
-        .log-source.blinkit-src { background:rgba(251,146,60,0.15); color:#ea580c; }
         .log-source.user-src { background:#fce7f3; color:#db2777; }
         .log-source.ai-src { background:rgba(16,185,129,0.15); color:#059669; }
-        .log-source.system-src { background:rgba(244,114,182,0.15); color:#ec4899; }
+        .log-source.system-src { background:rgba(59,130,246,0.15); color:#2563eb; }
         .log-time { font-size:0.72rem; color:#94a3b8; margin-left:auto; }
         .log-text { color:#334155; }
         .log-text strong { color:#0f172a; }
-
-        /* Blinkit order detail box */
-        .blinkit-detail { margin-top:0.5rem; background:#fff; border:1px solid rgba(251,146,60,0.25); border-radius:6px; padding:0.6rem 0.85rem; font-size:0.78rem; color:#475569; line-height:1.8; }
-        .blinkit-detail span { color:#ea580c; font-weight:600; }
-        .blinkit-badge { display:inline-flex; align-items:center; gap:0.3rem; background:rgba(251,146,60,0.12); border:1px solid rgba(251,146,60,0.3); color:#ea580c; font-size:0.72rem; font-weight:700; padding:0.2rem 0.6rem; border-radius:99px; }
 
         @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
 
@@ -80,11 +72,17 @@
                 <a href="/" class="nav-item">
                     <span class="icon">🎙️</span> Receptionist
                 </a>
-                <a href="#" class="nav-item active">
+                <a href="javascript:void(0)" class="nav-item active" id="tab-nav-dashboard" onclick="switchAdminTab('dashboard'); return false;">
                     <span class="icon">📊</span> Dashboard
+                </a>
+                <a href="javascript:void(0)" class="nav-item" id="tab-nav-openline" onclick="switchAdminTab('openline'); return false;">
+                    <span class="icon">📱</span> SIM Gateway
                 </a>
                 <a href="/prescription.html" class="nav-item">
                     <span class="icon">📋</span> Prescriptions
+                </a>
+                <a href="/video.html" class="nav-item">
+                    <span class="icon">🎬</span> Video Tour
                 </a>
             </nav>
 
@@ -109,7 +107,7 @@
                     </div>
                 </div>
 
-                <div class="status-card" id="cellular-gateway-card">
+                <div class="status-card" id="cellular-gateway-card" onclick="switchAdminTab('openline')" style="cursor: pointer;" title="Click to view JK AutoLink SIM Gateway">
                     <div class="status-card-head">
                         <span class="status-card-icon">📱</span>
                         <h4>SIM Voice Gateway</h4>
@@ -152,6 +150,7 @@
 
         <!-- Main Content -->
         <main class="main-content">
+            <div id="view-dashboard">
             <header class="main-header">
                 <div>
                     <div class="header-tag">Live Intelligence &amp; Management</div>
@@ -190,13 +189,13 @@
                     <div class="stat-value" id="upcoming-bookings">0</div>
                     <span class="stat-sub">Future consultations</span>
                 </div>
-                <div class="stat-card glow-card stat-orange">
+                <div class="stat-card glow-card stat-emerald">
                     <div class="stat-head">
-                        <h3>Blinkit Orders</h3>
-                        <span class="stat-icon">🛒</span>
+                        <h3>SIM Voice Calls</h3>
+                        <span class="stat-icon">🎙️</span>
                     </div>
-                    <div class="stat-value" id="blinkit-count">0</div>
-                    <span class="stat-sub">Medicine deliveries</span>
+                    <div class="stat-value" id="calls-count">0</div>
+                    <span class="stat-sub">Interactive AI calls</span>
                 </div>
             </div>
 
@@ -299,7 +298,7 @@
 
                 <div class="log-filter-row">
                     <button class="log-filter-btn active" data-filter="all" onclick="setLogFilter('all', this)">All Activity</button>
-                    <button class="log-filter-btn" data-filter="blinkit" onclick="setLogFilter('blinkit', this)">🛒 Blinkit Orders</button>
+                    <button class="log-filter-btn" data-filter="calls" onclick="setLogFilter('calls', this)">🎙️ SIM Calls</button>
                     <button class="log-filter-btn" data-filter="user" onclick="setLogFilter('user', this)">👤 Patients</button>
                     <button class="log-filter-btn" data-filter="ai" onclick="setLogFilter('ai', this)">🤖 AI Responses</button>
                     <button class="log-filter-btn" data-filter="whatsapp" onclick="setLogFilter('whatsapp', this)">💬 WhatsApp</button>
@@ -307,6 +306,69 @@
 
                 <div class="logs-box glow-card" id="logsBox">
                     <div style="text-align:center; color:#4b5563; font-size:0.85rem; padding:2rem;">Waiting for activity…</div>
+                </div>
+            </div>
+            </div> <!-- /#view-dashboard -->
+
+            <!-- ══ JK AUTOLINK / SIM GATEWAY VIEW ══ -->
+            <div id="view-openline" style="display: none;" class="gateway-container">
+                <div class="gateway-banner">
+                    <div>
+                        <div class="header-tag" style="background: rgba(59, 130, 246, 0.1); color: #2563eb; border-color: rgba(59, 130, 246, 0.2);">
+                            📡 Hardware SIM Telephony Bridge
+                        </div>
+                        <div class="gateway-banner-title">
+                            <span>📱</span> JK AutoLink Cellular Gateway
+                        </div>
+                        <p style="font-size: 0.88rem; color: #64748b; margin-top: 0.35rem;">
+                            Direct physical SIM cellular calling via Nothing Phone (2a) &bull; Google Gemini Live 3.8 AI Voice &bull; 16 kHz Full-Duplex PCM
+                        </p>
+                        <div class="gateway-chips">
+                            <span class="gateway-chip active" id="gw-device-chip">
+                                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981; box-shadow:0 0 6px #10b981;"></span>
+                                <strong id="gw-device-name">Nothing Phone (2a)</strong>
+                            </span>
+                            <span class="gateway-chip" id="gw-carrier-chip">
+                                📶 <span id="gw-carrier-name">JIO 4G</span>
+                            </span>
+                            <span class="gateway-chip" id="gw-battery-chip">
+                                🔋 <span id="gw-battery-pct">100%</span>
+                            </span>
+                            <span class="gateway-chip pink" id="gw-audio-chip">
+                                🎙️ <span id="gw-audio-status">16 kHz PCM · Live AI</span>
+                            </span>
+                            <span class="gateway-chip" style="border-color: rgba(59, 130, 246, 0.3); color: #2563eb;">
+                                ⚡ Port 8989
+                            </span>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                        <button class="btn-primary" style="background: linear-gradient(135deg, #ec4899, #3b82f6); box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3); font-size: 0.85rem; padding: 0.65rem 1.1rem; border: none; border-radius: 99px; color: white; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 0.4rem;" onclick="callPatient('Jeevan Kishore', '9442922888')">
+                            📞 Call Patient SIM
+                        </button>
+                        <button class="refresh-btn" style="border-color: rgba(59, 130, 246, 0.3); color: #2563eb;" onclick="reloadOpenlineIframe()">
+                            🔄 <span>Reload Console</span>
+                        </button>
+                        <a href="http://localhost:8989" target="_blank" class="refresh-btn" style="border-color: rgba(236, 72, 153, 0.3); color: #db2777; text-decoration: none; display: inline-flex; align-items: center; gap: 0.3rem;">
+                            ↗️ <span>Full Screen</span>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Embedded Gateway Console Frame -->
+                <div class="gateway-frame-card">
+                    <div style="background: linear-gradient(135deg, #ffffff, #eff6ff); border-bottom: 1px solid rgba(59, 130, 246, 0.15); padding: 0.75rem 1.25rem; display: flex; justify-content: space-between; align-items: center;">
+                        <div style="display: flex; align-items: center; gap: 0.6rem; font-size: 0.84rem; font-weight: 700; color: #1e293b;">
+                            <span style="display:inline-block; width:9px; height:9px; border-radius:50%; background:#10b981; box-shadow: 0 0 8px #10b981;"></span>
+                            <span>JK AutoLink Web Control Console</span>
+                            <span style="font-size: 0.74rem; color: #64748b; font-weight: 500;">(http://localhost:8989)</span>
+                        </div>
+                        <div style="font-size: 0.78rem; font-weight: 600; color: #3b82f6; display: flex; align-items: center; gap: 0.4rem;">
+                            <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#3b82f6;"></span>
+                            Real-Time SIM Hardware Channel
+                        </div>
+                    </div>
+                    <iframe id="openlineIframe" src="http://localhost:8989" style="width: 100%; height: 820px; border: none; display: block;" title="JK AutoLink Console"></iframe>
                 </div>
             </div>
 

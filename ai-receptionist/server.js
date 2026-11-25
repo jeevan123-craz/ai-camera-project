@@ -297,8 +297,10 @@ function recordCallAudio(callId, patientName, dialPhone, doctorName = 'MedGuard 
     voiceRecordings.unshift(recRecord);
     broadcastDashboardUpdate();
 
+    const openlineUrl = (process.env.OPENLINE_URL || 'http://127.0.0.1:8989').replace(/\/+$/, '');
     const openlineKey = process.env.OPENLINE_API_KEY || 'medguard-secret-key-2026';
-    const wsUrl = `ws://127.0.0.1:8989/v1/calls/${encodeURIComponent(callId)}/media?mode=listen`;
+    const wsBase = openlineUrl.replace(/^http:/i, 'ws:').replace(/^https:/i, 'wss:');
+    const wsUrl = `${wsBase}/v1/calls/${encodeURIComponent(callId)}/media?mode=listen`;
 
     try {
         const ws = new WebSocket(wsUrl, { headers: { 'x-api-key': openlineKey } });
@@ -449,17 +451,48 @@ Call Instructions:
     return { success: false, error: 'Call failed' };
 }
 
+// ── High Performance In-Memory Cache for Calendar & Appointments ──
+let cachedAppointments = [];
+let cachedAvailableSlots = [];
+let cachedSheetRows = [];
+let lastCalendarFetchTime = 0;
+const CACHE_TTL_MS = 60 * 1000; // 60 seconds
+
+async function refreshCalendarCache(force = false) {
+    const now = Date.now();
+    if (!force && now - lastCalendarFetchTime < CACHE_TTL_MS && cachedAppointments.length > 0) {
+        return;
+    }
+    try {
+        const [appts, slots, sheetsData] = await Promise.all([
+            calendar.getAllAppointments().catch(() => cachedAppointments),
+            calendar.getAvailableSlots().catch(() => cachedAvailableSlots),
+            sheets.getAllAppointmentRows().catch(() => cachedSheetRows)
+        ]);
+        if (appts) cachedAppointments = appts;
+        if (slots) cachedAvailableSlots = slots;
+        if (sheetsData) cachedSheetRows = sheetsData;
+        lastCalendarFetchTime = now;
+    } catch (e) {
+        console.warn('[Cache] Background refresh error:', e.message);
+    }
+}
+
+// Initialize cache on startup and refresh every 60s in background
+refreshCalendarCache(true);
+setInterval(() => { refreshCalendarCache(false); }, CACHE_TTL_MS);
+
 function addLog(source, role, text, sessionId, extra = {}) {
     callLogs.unshift({ source, role, text, sessionId, timestamp: new Date().toISOString(), extra });
     if (callLogs.length > 100) callLogs.pop();
     broadcastDashboardUpdate();
 }
 
-// ── Broadcast function for dashboard ──
-async function broadcastDashboardUpdate() {
+// ── Instant synchronous broadcast for dashboard (uses memory cache) ──
+function broadcastDashboardUpdate() {
     const data = JSON.stringify({
-        appointments: await calendar.getAllAppointments(),
-        availableSlots: await calendar.getAvailableSlots(),
+        appointments: cachedAppointments,
+        availableSlots: cachedAvailableSlots,
         logs: callLogs,
         recordings: voiceRecordings,
         whatsappStatus: {
@@ -474,11 +507,11 @@ async function broadcastDashboardUpdate() {
     });
 }
 
-wss.on('connection', async (ws) => {
+wss.on('connection', (ws) => {
     console.log('Dashboard client connected');
     const data = JSON.stringify({
-        appointments: await calendar.getAllAppointments(),
-        availableSlots: await calendar.getAvailableSlots(),
+        appointments: cachedAppointments,
+        availableSlots: cachedAvailableSlots,
         logs: callLogs,
         recordings: voiceRecordings,
         whatsappStatus: {
@@ -487,6 +520,7 @@ wss.on('connection', async (ws) => {
         }
     });
     ws.send(data);
+    refreshCalendarCache(false);
 });
 
 // ── WhatsApp Listeners ──
@@ -560,6 +594,7 @@ app.post('/chat', chatLimiter, async (req, res) => {
                 // Log real phone number to Google Sheets column C
                 await sheets.logAppointment(patientName, patientPhone || 'N/A', time, "Browser Chat", doctorName, reason, email);
                 booked = true;
+                refreshCalendarCache(true).then(() => broadcastDashboardUpdate()).catch(() => {});
 
                 if (email) {
                     const tokenNumber = gmail.tokenFromEventId(result.eventId);
@@ -590,6 +625,7 @@ app.post('/chat', chatLimiter, async (req, res) => {
             aiResponse = aiResponse.replace(cancelRegex, '').trim();
             if (cancelResult.success) {
                 booked = true;
+                refreshCalendarCache(true).then(() => broadcastDashboardUpdate()).catch(() => {});
             } else {
                 console.error(`Cancel failed for "${patientName}": ${cancelResult.message}`);
                 aiResponse += ` (Note: I couldn't find an appointment under that name to cancel — please double check the name or contact the clinic.)`;
@@ -608,6 +644,7 @@ app.post('/chat', chatLimiter, async (req, res) => {
             if (result.success) {
                 await sheets.logAppointment(patientName, "Browser", newTime, "Browser Chat Reschedule", doctorName, reason);
                 booked = true;
+                refreshCalendarCache(true).then(() => broadcastDashboardUpdate()).catch(() => {});
             }
             aiResponse = aiResponse.replace(rescheduleRegex, '').trim();
         }
@@ -854,7 +891,8 @@ app.get('/api/openline/status', adminAuth, async (req, res) => {
     const openlineKey = process.env.OPENLINE_API_KEY || 'medguard-secret-key-2026';
     try {
         const resp = await fetch(`${openlineUrl}/v1/devices`, {
-            headers: { 'Authorization': `Bearer ${openlineKey}` }
+            headers: { 'Authorization': `Bearer ${openlineKey}` },
+            signal: AbortSignal.timeout(2500)
         });
         if (!resp.ok) return res.status(resp.status).json({ error: 'OpenLine gateway error' });
         const data = await resp.json();
@@ -1042,28 +1080,29 @@ app.post('/api/voice/process', async (req, res) => {
     res.send(twiml.toString());
 });
 
-// ── Admin Dashboard Endpoint ───────────────────────────────────────────────
+// ── Admin Dashboard Endpoint (Instant Memory-Cached) ─────────────────────────
 app.get('/api/appointments', adminAuth, async (req, res) => {
     try {
-        const [appointments, sheetRows] = await Promise.all([
-            calendar.getAllAppointments(),
-            sheets.getAllAppointmentRows().catch(() => [])
-        ]);
-
         const phoneMap = {};
-        for (const r of sheetRows) {
+        for (const r of cachedSheetRows) {
             if (r.patient && r.phone && r.phone !== 'N/A' && r.phone !== 'Browser') {
                 phoneMap[r.patient.toLowerCase().trim()] = r.phone;
             }
         }
 
-        const enriched = appointments.map(apt => {
+        const sourceAppts = cachedAppointments.length > 0 ? cachedAppointments : await calendar.getAllAppointments();
+        const enriched = sourceAppts.map(apt => {
             const cleanName = (apt.patientName || '').toLowerCase().trim();
             const phone = apt.phone || phoneMap[cleanName] || '';
             return { ...apt, phone };
         });
 
         res.json(enriched);
+
+        // Background non-blocking sync if cache is older than 20 seconds
+        if (Date.now() - lastCalendarFetchTime > 20000) {
+            refreshCalendarCache(true).then(() => broadcastDashboardUpdate()).catch(() => {});
+        }
     } catch (err) {
         console.error('Error fetching appointments:', err);
         res.status(500).json({ error: 'Failed to fetch appointments' });
@@ -1090,6 +1129,7 @@ app.post('/api/phone-call-action', async (req, res) => {
                     const token = gmail.tokenFromEventId(result.eventId);
                     gmail.sendAppointmentConfirmation(email, { patientName, time, doctorName: doc, reason, tokenNumber: token }).catch(() => {});
                 }
+                refreshCalendarCache(true).then(() => broadcastDashboardUpdate()).catch(() => {});
                 addLog('OpenLine', 'system', `Booked appointment via cellular call for ${patientName} with ${doc}`, phone);
                 return res.json({ success: true, message: `Appointment confirmed with ${doc}` });
             }
@@ -1097,6 +1137,7 @@ app.post('/api/phone-call-action', async (req, res) => {
         } else if (action === 'cancel') {
             const result = await calendar.cancelAppointment(patientName);
             if (result.success) {
+                refreshCalendarCache(true).then(() => broadcastDashboardUpdate()).catch(() => {});
                 addLog('OpenLine', 'system', `Cancelled appointment via cellular call for ${patientName}`, phone);
                 return res.json({ success: true, message: `Appointment cancelled for ${patientName}` });
             }
@@ -1105,6 +1146,7 @@ app.post('/api/phone-call-action', async (req, res) => {
             const result = await calendar.rescheduleAppointment(oldTime, time, patientName, reason, doctorName || 'Dr. K.I. Joseph');
             if (result.success) {
                 await sheets.logAppointment(patientName, phone || 'Cellular Call', time, 'Phone Reschedule', doctorName, reason);
+                refreshCalendarCache(true).then(() => broadcastDashboardUpdate()).catch(() => {});
                 addLog('OpenLine', 'system', `Rescheduled appointment via cellular call for ${patientName}`, phone);
                 return res.json({ success: true, message: `Rescheduled to ${time}` });
             }
@@ -1208,57 +1250,20 @@ app.get('/api/prescription/:patientName', async (req, res) => {
     }
 });
 
-// ════════════════════════════════════════════════
-// ── BLINKIT ORDER ENDPOINT ────────────────────
-// POST /api/blinkit-order
-// Simulates the MCP / Blinkit integration.
-// Logs the order to the admin Live Logs dashboard.
-// ════════════════════════════════════════════════
-app.post('/api/blinkit-order', async (req, res) => {
-    const { patientName, medicines, address, phone, doctorName, diagnosis } = req.body;
-
-    // Validate required fields
-    if (!patientName || !address || !phone) {
-        return res.status(400).json({ error: 'patientName, address, and phone are required.' });
-    }
-    if (!medicines || !Array.isArray(medicines) || medicines.length === 0) {
-        return res.status(400).json({ error: 'No medicines to order.' });
-    }
-
-    const medNames = medicines.map(m => m.name).join(', ');
-    const logText  = `🛒 Blinkit Order — Patient: ${patientName} | Medicines: ${medNames} | Address: ${address} | Phone: ${phone}`;
-
-    // Log to admin dashboard live logs
-    addLog('Blinkit', 'blinkit', logText, patientName, {
-        patientName,
-        medicines,
-        address,
-        phone,
-        doctorName: doctorName || '—',
-        diagnosis:  diagnosis  || '—',
-        orderedAt:  new Date().toISOString(),
-    });
-
-    console.log(`[Blinkit Order] ${patientName} | ${medNames} | → ${address} | 📞 ${phone}`);
-
-    // ── Simulate MCP Blinkit API call ──
-    // In production, you'd call Blinkit's real API here with auth credentials.
-    // For now we simulate a ~1.5s processing delay and always succeed.
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
-    res.json({
-        success:   true,
-        orderId:   'BLK-' + Date.now(),
-        message:   `Order placed! Medicines will be delivered to ${address} within 10–15 minutes.`,
-        estimatedDelivery: '10–15 minutes',
-    });
-});
-
 // ── Start WhatsApp and Server ──────────────────────────────────────────────
 whatsapp.start();
-cronJobs.startCronJobs();
+cronJobs.startCronJobs(whatsapp);
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
     console.log(`AI Receptionist Server running on port ${PORT}`);
+    console.log(`  ➜ Local:   http://localhost:${PORT}`);
+    const nets = os.networkInterfaces();
+    for (const ifaces of Object.values(nets)) {
+        for (const info of ifaces || []) {
+            if (info.family === 'IPv4' && !info.internal) {
+                console.log(`  ➜ Network: http://${info.address}:${PORT}`);
+            }
+        }
+    }
 });

@@ -1,9 +1,16 @@
 const cron = require('node-cron');
 const calendar = require('./calendar');
 const sheets = require('./sheets');
-const whatsapp = require('./whatsapp');
 
-function startCronJobs() {
+function startCronJobs(whatsappRef) {
+    let whatsapp = whatsappRef;
+    if (!whatsapp) {
+        try {
+            whatsapp = require('./whatsapp');
+        } catch (_) {
+            whatsapp = { isReady: false, sendDirectMessage: async () => false };
+        }
+    }
     console.log('🕒 Initializing Background Cron Jobs...');
 
     // Run every hour to check for 24-hour reminders and 48-hour follow-ups

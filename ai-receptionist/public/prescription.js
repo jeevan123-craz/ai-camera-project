@@ -24,9 +24,6 @@ const $ = id => document.getElementById(id);
     document.addEventListener('DOMContentLoaded', async () => {
         $('patientNameInput').value = patient;
         await fetchPrescription();
-        if (params.get('openBlinkit') === '1' && currentPrescription) {
-            openBlinkitModal();
-        }
     });
 })();
 
@@ -120,90 +117,6 @@ function downloadPrescription() {
 }
 
 // ════════════════════════════════════════════════
-// Blinkit Modal
-// ════════════════════════════════════════════════
-function openBlinkitModal() {
-    if (!currentPrescription) return;
-
-    // Populate medicine list in modal
-    const medNames = (currentPrescription.medicines || [])
-        .map((m, i) => `${i + 1}. ${m.name} — ${m.dosage}`)
-        .join('\n');
-    $('blinkitMedList').textContent = medNames || 'No medicines listed.';
-
-    // Reset modal state
-    $('blinkitFormView').style.display = 'block';
-    $('blinkitSuccess').style.display  = 'none';
-    $('deliveryAddress').value = '';
-    $('deliveryPhone').value   = '';
-    hideBlinkitError();
-
-    $('blinkitModal').classList.add('open');
-}
-
-function closeBlinkitModal() {
-    $('blinkitModal').classList.remove('open');
-}
-
-// Close modal on overlay click
-$('blinkitModal').addEventListener('click', function(e) {
-    if (e.target === this) closeBlinkitModal();
-});
-
-// ════════════════════════════════════════════════
-// Place Blinkit Order
-// ════════════════════════════════════════════════
-async function placeBlinkitOrder() {
-    const address = $('deliveryAddress').value.trim();
-    const phone   = $('deliveryPhone').value.trim();
-
-    if (!address) { showBlinkitError('Please enter your delivery address.'); return; }
-    if (!phone)   { showBlinkitError('Please enter your phone number.'); return; }
-    if (!/^[+\d][\d\s\-]{8,14}$/.test(phone)) {
-        showBlinkitError('Please enter a valid phone number (e.g. +91 98765 43210).');
-        return;
-    }
-
-    hideBlinkitError();
-    $('placeOrderBtn').disabled    = true;
-    $('placeOrderBtn').textContent = '⏳ Placing Order…';
-
-    try {
-        const payload = {
-            patientName:  currentPrescription.patientName,
-            medicines:    currentPrescription.medicines || [],
-            address,
-            phone,
-            doctorName:   currentPrescription.doctorName,
-            diagnosis:    currentPrescription.diagnosis,
-        };
-
-        const res  = await fetch('/api/blinkit-order', {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify(payload),
-        });
-        const data = await res.json();
-
-        if (!res.ok || data.error) throw new Error(data.error || 'Order failed.');
-
-        // Show success view
-        $('blinkitFormView').style.display = 'none';
-        $('blinkitSuccess').style.display  = 'block';
-
-        // Disable the Blinkit button on the main card (order already placed)
-        $('blinkitBtn').disabled    = true;
-        $('blinkitBtn').textContent = '✅ Order Placed';
-
-    } catch (err) {
-        showBlinkitError('⚠️ ' + (err.message || 'Something went wrong. Please try again.'));
-    } finally {
-        $('placeOrderBtn').disabled    = false;
-        $('placeOrderBtn').textContent = '⚡ Place Order — Deliver to My Address';
-    }
-}
-
-// ════════════════════════════════════════════════
 // Helpers
 // ════════════════════════════════════════════════
 function showError(msg) {
@@ -212,13 +125,6 @@ function showError(msg) {
     el.style.display = 'block';
 }
 function hideError() { $('rxError').style.display = 'none'; }
-
-function showBlinkitError(msg) {
-    const el = $('blinkitError');
-    el.textContent = msg;
-    el.style.display = 'block';
-}
-function hideBlinkitError() { $('blinkitError').style.display = 'none'; }
 
 function escHtml(str) {
     return String(str || '')

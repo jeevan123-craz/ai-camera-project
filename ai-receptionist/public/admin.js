@@ -1,13 +1,12 @@
 /* ════════════════════════════════════════════════
    MedGuard Admin Dashboard — admin.js
-   Now with WebSocket live logs + Blinkit order rendering
+   Now with WebSocket live logs + SIM Telephony Voice Gateway
    ════════════════════════════════════════════════ */
 
 'use strict';
 
 let allLogs = [];
 let currentFilter = 'all';
-let blinkitOrderCount = 0;
 let lastSeenLogKey = null;
 
 // ════════════════════════════════════════════════
@@ -218,8 +217,8 @@ function initWebSocket() {
                 const newestKey = logs[0].timestamp + logs[0].text;
                 if (lastSeenLogKey !== null && newestKey !== lastSeenLogKey) {
                     playAdminNotifySound();
-                    const src = logs[0].source === 'Blinkit' ? '🛒 New Blinkit order' : `📨 New activity from ${logs[0].source || 'patient'}`;
-                    showToast(src, logs[0].source === 'Blinkit' ? 'info' : 'success');
+                    const src = `📨 New activity from ${logs[0].source || 'patient'}`;
+                    showToast(src, 'info');
                 }
                 lastSeenLogKey = newestKey;
             }
@@ -228,11 +227,10 @@ function initWebSocket() {
             allLogs = logs;
             renderLogs();
 
-            // Update Blinkit count
-            const blinkitLogs = logs.filter(l => l.source === 'Blinkit');
-            blinkitOrderCount = blinkitLogs.length;
-            const bc = document.getElementById('blinkit-count');
-            if (bc) animateCount(bc, blinkitOrderCount);
+            // Update SIM Voice Calls count
+            const callLogs = logs.filter(l => l.source === 'OpenLine' || l.source === 'Phone' || l.source === 'Twilio');
+            const cc = document.getElementById('calls-count');
+            if (cc) animateCount(cc, callLogs.length || recordings.length || 0);
 
             const lc = document.getElementById('logsCountBadge');
             if (lc) lc.textContent = logs.length;
@@ -389,8 +387,8 @@ function renderLogs() {
 
     let filtered = allLogs;
 
-    if (currentFilter === 'blinkit') {
-        filtered = allLogs.filter(l => l.source === 'Blinkit');
+    if (currentFilter === 'calls') {
+        filtered = allLogs.filter(l => l.source === 'OpenLine' || l.source === 'Phone' || l.source === 'Twilio');
     } else if (currentFilter === 'user') {
         filtered = allLogs.filter(l => l.role === 'user');
     } else if (currentFilter === 'ai') {
@@ -400,7 +398,7 @@ function renderLogs() {
     }
 
     if (!filtered.length) {
-        box.innerHTML = `<div style="text-align:center;color:#4b5563;font-size:0.85rem;padding:2rem;">${currentFilter === 'blinkit' ? '🛒 No Blinkit orders yet.' : 'No activity yet.'}</div>`;
+        box.innerHTML = `<div style="text-align:center;color:#4b5563;font-size:0.85rem;padding:2rem;">${currentFilter === 'calls' ? '🎙️ No phone calls yet.' : 'No activity yet.'}</div>`;
         return;
     }
 
@@ -409,41 +407,27 @@ function renderLogs() {
 
 function buildLogEntry(log) {
     const time = new Date(log.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const isBlinkit = log.source === 'Blinkit';
     const isCodeRed = log.extra?.type === 'code_red';
+    const isCall = log.source === 'OpenLine' || log.source === 'Phone';
 
     // Source badge
     let srcClass = 'system-src';
     let srcLabel = log.source || 'System';
     if (isCodeRed)                        { srcClass = 'code-red-src'; srcLabel = '🚨 EMERGENCY'; }
-    else if (isBlinkit)                   { srcClass = 'blinkit-src'; srcLabel = '🛒 Blinkit'; }
+    else if (isCall)                      { srcClass = 'system-src';  srcLabel = '🎙️ ' + log.source; }
     else if (log.role === 'user')         { srcClass = 'user-src';    srcLabel = '👤 ' + (log.source || 'Patient'); }
     else if (log.role === 'ai')           { srcClass = 'ai-src';      srcLabel = '🤖 AI'; }
     else if (log.source === 'WhatsApp')   { srcClass = 'user-src';    srcLabel = '💬 WhatsApp'; }
 
     // Role icon
-    const icon = log.role === 'emergency' ? '🚨' : log.role === 'user' ? '👤' : log.role === 'ai' ? '🤖' : isBlinkit ? '🛒' : '⚙️';
-
-    // Blinkit detail panel
-    let blinkitDetail = '';
-    if (isBlinkit && log.extra) {
-        const meds = (log.extra.medicines || []).map(m => `${m.name} (${m.dosage})`).join(', ');
-        blinkitDetail = `
-            <div class="blinkit-detail">
-                📦 <span>Medicines:</span> ${esc(meds || '—')}<br>
-                📍 <span>Address:</span> ${esc(log.extra.address || '—')}<br>
-                📞 <span>Phone:</span> ${esc(log.extra.phone || '—')}<br>
-                👨‍⚕️ <span>Doctor:</span> ${esc(log.extra.doctorName || '—')} &nbsp;·&nbsp; <span>Diagnosis:</span> ${esc(log.extra.diagnosis || '—')}
-            </div>`;
-    }
+    const icon = log.role === 'emergency' ? '🚨' : isCall ? '🎙️' : log.role === 'user' ? '👤' : log.role === 'ai' ? '🤖' : '⚙️';
 
     // IP info
-    const ipInfo = (!isBlinkit && log.extra?.ip)
+    const ipInfo = log.extra?.ip
         ? `<div style="font-size:0.65rem;color:#4b5563;margin-top:0.25rem;">IP: ${esc(log.extra.ip)}</div>`
         : '';
 
     const entryClass = isCodeRed ? 'log-entry code-red'
-        : isBlinkit ? 'log-entry blinkit'
         : log.role === 'user'    ? 'log-entry user'
         : log.role === 'ai'      ? 'log-entry ai'
         : 'log-entry system';
@@ -451,11 +435,9 @@ function buildLogEntry(log) {
     return `<div class="${entryClass}">
         <div class="log-meta">
             <span class="log-source ${srcClass}">${srcLabel}</span>
-            ${isBlinkit ? '<span class="blinkit-badge">⚡ New Order</span>' : ''}
             <span class="log-time">${time}</span>
         </div>
         <div class="log-text">${icon} ${esc(log.text)}</div>
-        ${blinkitDetail}
         ${ipInfo}
     </div>`;
 }
@@ -740,6 +722,38 @@ async function fetchAnalytics() {
 }
 
 // ════════════════════════════════════════════════
+// Admin Tab Switching (Dashboard vs SIM Gateway)
+// ════════════════════════════════════════════════
+function switchAdminTab(tab) {
+    const dashView = document.getElementById('view-dashboard');
+    const openlineView = document.getElementById('view-openline');
+    const navDash = document.getElementById('tab-nav-dashboard');
+    const navOpenline = document.getElementById('tab-nav-openline');
+
+    if (tab === 'openline') {
+        if (dashView) dashView.style.display = 'none';
+        if (openlineView) openlineView.style.display = 'flex';
+        if (navDash) navDash.classList.remove('active');
+        if (navOpenline) navOpenline.classList.add('active');
+        // Refresh iframe and status on switch
+        updateCellularStatus();
+    } else {
+        if (openlineView) openlineView.style.display = 'none';
+        if (dashView) dashView.style.display = 'block';
+        if (navOpenline) navOpenline.classList.remove('active');
+        if (navDash) navDash.classList.add('active');
+    }
+}
+
+function reloadOpenlineIframe() {
+    const frame = document.getElementById('openlineIframe');
+    if (frame) {
+        frame.src = 'http://localhost:8989';
+        showToast('Refreshing JK AutoLink Console...', 'info');
+    }
+}
+
+// ════════════════════════════════════════════════
 // Boot
 // ════════════════════════════════════════════════
 async function updateCellularStatus() {
@@ -750,21 +764,40 @@ async function updateCellularStatus() {
         const label = document.getElementById('cellularStatusLabel');
         const details = document.getElementById('cellularDetails');
         const dot = document.getElementById('cellularDot');
+
+        // Gateway view elements
+        const gwDevice = document.getElementById('gw-device-name');
+        const gwCarrier = document.getElementById('gw-carrier-name');
+        const gwBattery = document.getElementById('gw-battery-pct');
+        const gwAudio = document.getElementById('gw-audio-status');
+
         if (data.online && data.device) {
             const h = data.device.health || {};
+            const devName = data.device.name || 'Nothing Phone (2a)';
+            const carrier = h.carrier || 'JIO 4G';
+            const battery = h.battery !== undefined ? h.battery + '%' : '100%';
+            const audioState = h.audio === 'running' ? '16 kHz PCM · Live AI' : (h.audio || 'Active');
+
             if (label) label.textContent = 'SIM Online (Active)';
-            if (details) details.textContent = `${data.device.name || 'Android'} · ${h.carrier || 'Cellular'} · ${h.battery ? h.battery + '%' : 'Ready'}`;
+            if (details) details.textContent = `${devName} · ${carrier} · ${battery}`;
             if (dot) {
                 dot.style.background = '#10b981';
                 dot.style.boxShadow = '0 0 10px #10b981';
             }
+
+            if (gwDevice) gwDevice.textContent = devName;
+            if (gwCarrier) gwCarrier.textContent = carrier;
+            if (gwBattery) gwBattery.textContent = battery + (h.charging ? ' ⚡' : '');
+            if (gwAudio) gwAudio.textContent = audioState;
         } else {
-            if (label) label.textContent = 'SIM Gateway Off';
-            if (details) details.textContent = 'Connect phone to OpenLine';
+            if (label) label.textContent = 'SIM Gateway Standby';
+            if (details) details.textContent = 'Connecting to JK AutoLink...';
             if (dot) {
                 dot.style.background = '#f59e0b';
                 dot.style.boxShadow = '0 0 10px #f59e0b';
             }
+            if (gwDevice) gwDevice.textContent = 'Hardware Standby';
+            if (gwAudio) gwAudio.textContent = 'Standby';
         }
     } catch (e) {
         // ignore

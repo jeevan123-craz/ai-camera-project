@@ -110,8 +110,7 @@ async function sendPrescriptionEmail(toEmail, { patientName, doctorName, diagnos
     `).join('');
 
     const baseUrl = (process.env.APP_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '');
-    const blinkitUrl = `${baseUrl}/prescription.html?patient=${encodeURIComponent(patientName)}&openBlinkit=1`;
-    const hasMedicines = medicines && medicines.length > 0;
+    const prescriptionUrl = `${baseUrl}/prescription.html?patient=${encodeURIComponent(patientName)}`;
 
     const body = `
         <p style="margin:0 0 18px;">Hi ${patientName}, ${doctorName || 'your doctor'} has published your prescription.</p>
@@ -128,13 +127,11 @@ async function sendPrescriptionEmail(toEmail, { patientName, doctorName, diagnos
             </thead>
             <tbody>${medRows || '<tr><td colspan="4" style="padding:8px; color:#94a3b8;">No medicines listed.</td></tr>'}</tbody>
         </table>
-        ${hasMedicines ? `
         <div style="text-align:center; margin-bottom:20px;">
-            <a href="${blinkitUrl}" style="display:inline-block; background:linear-gradient(135deg,#f97316,#ea580c); color:#ffffff; text-decoration:none; font-weight:700; font-size:14px; padding:12px 28px; border-radius:10px;">🛒 Order These Medicines via Blinkit</a>
+            <a href="${prescriptionUrl}" style="display:inline-block; background:linear-gradient(135deg,#ec4899,#db2777); color:#ffffff; text-decoration:none; font-weight:700; font-size:14px; padding:12px 28px; border-radius:10px;">📋 View Digital Prescription</a>
         </div>
-        ` : ''}
         <p style="margin:0 0 6px; font-size:13px; color:#64748b;">DOCTOR'S NOTES</p>
-        <p style="margin:0; background:#f8fafc; border-left:3px solid #6366f1; padding:10px 14px; border-radius:6px;">${doctorNotes || '—'}</p>
+        <p style="margin:0; background:#f8fafc; border-left:3px solid #ec4899; padding:10px 14px; border-radius:6px;">${doctorNotes || '—'}</p>
         <p style="margin-top:20px; font-size:11px; color:#94a3b8;">⚠️ This is a digital copy for your convenience. Always consult your healthcare provider directly before taking any medications.</p>
     `;
 

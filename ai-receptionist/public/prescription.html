@@ -177,35 +177,6 @@
         </div>
         <div class="rx-actions">
             <button class="rx-btn rx-btn-download" onclick="downloadPrescription()">⬇️ Download Prescription</button>
-            <button class="rx-btn rx-btn-blinkit" id="blinkitBtn" onclick="openBlinkitModal()">🛒 Order Medicines via Blinkit</button>
-        </div>
-    </div>
-</div>
-
-<!-- Blinkit Order Modal -->
-<div class="modal-overlay" id="blinkitModal">
-    <div class="modal-box">
-        <div id="blinkitFormView">
-            <div class="modal-head">
-                <div class="modal-title">🛒 Order via Blinkit</div>
-                <button class="modal-close" onclick="closeBlinkitModal()">✕</button>
-            </div>
-            <div class="blinkit-logo-row">🟡 Blinkit — 10-minute grocery &amp; medicine delivery</div>
-            <div class="medicines-confirm">
-                <div class="medicines-confirm-label">Medicines to be ordered</div>
-                <div class="medicines-confirm-list" id="blinkitMedList">—</div>
-            </div>
-            <label class="form-label" for="deliveryAddress">Delivery Address</label>
-            <input type="text" class="form-input" id="deliveryAddress" placeholder="e.g. 12, Anna Nagar, Coimbatore - 641001">
-            <label class="form-label" for="deliveryPhone">Phone Number</label>
-            <input type="tel" class="form-input" id="deliveryPhone" placeholder="e.g. +91 98765 43210">
-            <div id="blinkitError" style="display:none; font-size:.82rem; color:#fda4af; margin-bottom:.85rem; padding:.6rem 1rem; background:rgba(244,63,94,.08); border:1px solid rgba(244,63,94,.2); border-radius:8px;"></div>
-            <button class="order-btn" id="placeOrderBtn" onclick="placeBlinkitOrder()">⚡ Place Order — Deliver to My Address</button>
-        </div>
-        <div class="success-state" id="blinkitSuccess">
-            <div class="success-icon">✅</div>
-            <div class="success-title">Order Placed Successfully!</div>
-            <p class="success-sub">Your medicines have been requested via Blinkit.<br>The clinic admin has been notified.<br><br><strong style="color:var(--emerald);">Estimated delivery: 10–15 minutes</strong></p>
         </div>
     </div>
 </div>

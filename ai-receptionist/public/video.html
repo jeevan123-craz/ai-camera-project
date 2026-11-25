@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedGuard AI & JK AutoLink — Video Tour & Architecture</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --primary-light: #eff6ff;
+            --pink: #ec4899;
+            --pink-light: #fdf2f8;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding: 2.5rem 1.5rem;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .brand-icon {
+            font-size: 2rem;
+            background: #ffffff;
+            border: 1px solid var(--border);
+            padding: 0.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+        }
+        .brand h1 {
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: #0f172a;
+        }
+        .brand h1 span {
+            background: linear-gradient(135deg, #2563eb, #ec4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .nav-links {
+            display: flex;
+            gap: 0.75rem;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.65rem 1.25rem;
+            border-radius: 99px;
+            font-size: 0.88rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+            font-family: 'Outfit', sans-serif;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: #ffffff;
+            border: none;
+            box-shadow: 0 4px 15px rgba(37,99,235,0.25);
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(37,99,235,0.35);
+        }
+        .btn-outline {
+            background: #ffffff;
+            color: var(--text-main);
+            border: 1px solid var(--border);
+        }
+        .btn-outline:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        /* Video Showcase Layout */
+        .video-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 2rem;
+            align-items: start;
+        }
+        @media (max-width: 960px) {
+            .video-grid { grid-template-columns: 1fr; }
+        }
+
+        .video-box {
+            background: #ffffff;
+            border: 1.5px solid var(--border);
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 20px 45px rgba(15,23,42,0.06);
+        }
+        video {
+            width: 100%;
+            display: block;
+            background: #000;
+            aspect-ratio: 16 / 9;
+        }
+        .video-meta {
+            padding: 1.5rem 1.75rem;
+        }
+        .video-meta h2 {
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 0.5rem;
+        }
+        .video-meta p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+
+        /* Chapters list */
+        .chapters-card {
+            background: #ffffff;
+            border: 1.5px solid var(--border);
+            border-radius: 20px;
+            padding: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.03);
+        }
+        .chapters-card h3 {
+            font-size: 1.1rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            color: #1e293b;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .chapter-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        .chapter-item {
+            padding: 0.85rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8fafc;
+        }
+        .chapter-item:hover, .chapter-item.active {
+            background: #eff6ff;
+            border-color: #3b82f6;
+            transform: translateX(4px);
+        }
+        .chapter-item strong {
+            font-size: 0.88rem;
+            color: #1e293b;
+        }
+        .chapter-item span {
+            font-size: 0.78rem;
+            color: var(--primary);
+            font-weight: 700;
+            background: #ffffff;
+            padding: 0.2rem 0.5rem;
+            border-radius: 99px;
+            border: 1px solid rgba(37,99,235,0.2);
+        }
+
+        /* Overview cards */
+        .features-summary {
+            margin-top: 2.5rem;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.25rem;
+        }
+        @media (max-width: 900px) {
+            .features-summary { grid-template-columns: repeat(2, 1fr); }
+        }
+        .f-card {
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.25rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+        }
+        .f-card-icon {
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+        .f-card-title {
+            font-size: 0.98rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 0.3rem;
+        }
+        .f-card-desc {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- Header -->
+    <header class="header">
+        <div class="brand">
+            <span class="brand-icon">🎬</span>
+            <div>
+                <h1>MedGuard AI &amp; <span>JK AutoLink</span></h1>
+                <p style="font-size: 0.85rem; color: #64748b;">System Overview, Telephony Working &amp; Hardware Guide</p>
+            </div>
+        </div>
+        <div class="nav-links">
+            <a href="/admin.html" class="btn btn-outline">📊 Admin Portal</a>
+            <a href="/" class="btn btn-outline">🎙️ Receptionist</a>
+            <a href="/MedGuard_JK_AutoLink_Showcase.mp4" download class="btn btn-primary">⬇️ Download Video (MP4)</a>
+        </div>
+    </header>
+
+    <!-- Main Video Grid -->
+    <div class="video-grid">
+        <div class="video-box">
+            <video id="showcaseVideo" controls preload="metadata" poster="/scene1.png">
+                <source src="/MedGuard_JK_AutoLink_Showcase.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+            <div class="video-meta">
+                <h2>Autonomous Clinical Reception &amp; Physical SIM Telephony</h2>
+                <p>
+                    Full walkthrough of MedGuard AI and the JK AutoLink Cellular Gateway. Demonstrates how virtual patient intake integrates with direct physical SIM voice calls on Nothing Phone (2a) using Google Gemini Live 3.8.
+                </p>
+            </div>
+        </div>
+
+        <!-- Chapter Selector -->
+        <div class="chapters-card">
+            <h3>📑 Video Chapters</h3>
+            <div class="chapter-list">
+                <div class="chapter-item active" onclick="seekVideo(0)">
+                    <div>
+                        <strong>1. System Introduction</strong>
+                        <div style="font-size: 0.75rem; color: #64748b;">Overview &amp; Core Vision</div>
+                    </div>
+                    <span>0:00</span>
+                </div>
+                <div class="chapter-item" onclick="seekVideo(16.5)">
+                    <div>
+                        <strong>2. How It Works</strong>
+                        <div style="font-size: 0.75rem; color: #64748b;">End-to-End Workflow</div>
+                    </div>
+                    <span>0:16</span>
+                </div>
+                <div class="chapter-item" onclick="seekVideo(46.0)">
+                    <div>
+                        <strong>3. Clinical Uses</strong>
+                        <div style="font-size: 0.75rem; color: #64748b;">12 Specialists &amp; Prescriptions</div>
+                    </div>
+                    <span>0:46</span>
+                </div>
+                <div class="chapter-item" onclick="seekVideo(65.8)">
+                    <div>
+                        <strong>4. Key Advantages</strong>
+                        <div style="font-size: 0.75rem; color: #64748b;">Zero VoIP Fees &amp; Real Caller ID</div>
+                    </div>
+                    <span>1:05</span>
+                </div>
+                <div class="chapter-item" onclick="seekVideo(90.7)">
+                    <div>
+                        <strong>5. Hardware Setup</strong>
+                        <div style="font-size: 0.75rem; color: #64748b;">Nothing Phone (2a) &amp; ADB Bus</div>
+                    </div>
+                    <span>1:30</span>
+                </div>
+                <div class="chapter-item" onclick="seekVideo(115.5)">
+                    <div>
+                        <strong>6. Quick Startup</strong>
+                        <div style="font-size: 0.75rem; color: #64748b;">One-Click Master Launcher</div>
+                    </div>
+                    <span>1:55</span>
+                </div>
+            </div>
+
+            <div style="margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--border); text-align: center;">
+                <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.6rem;">Duration: <strong>2m 08s</strong> &bull; Resolution: <strong>1080p Full HD</strong></div>
+                <a href="/MedGuard_JK_AutoLink_Complete_Documentation.pdf" target="_blank" style="font-size: 0.85rem; color: var(--primary); text-decoration: none; font-weight: 600;">
+                    📄 View Written PDF Manual &rarr;
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Features Summary Grid -->
+    <div class="features-summary">
+        <div class="f-card">
+            <div class="f-card-icon">📱</div>
+            <div class="f-card-title">Physical 4G SIM VoLTE</div>
+            <div class="f-card-desc">Nothing Phone (2a) acts as a physical cellular GSM transceiver, delivering high-trust 10-digit mobile caller ID.</div>
+        </div>
+        <div class="f-card">
+            <div class="f-card-icon">🧠</div>
+            <div class="f-card-title">Gemini Live 3.8</div>
+            <div class="f-card-desc">Full-duplex 16 kHz raw PCM audio streaming with dynamic active listening, barge-in, and tool calling.</div>
+        </div>
+        <div class="f-card">
+            <div class="f-card-icon">💸</div>
+            <div class="f-card-title">Zero Cloud VoIP Fees</div>
+            <div class="f-card-desc">Operates on unlimited local cellular plans without recurring per-minute charges from providers like Twilio.</div>
+        </div>
+        <div class="f-card">
+            <div class="f-card-icon">⚡</div>
+            <div class="f-card-title">Sub-15ms Velocity</div>
+            <div class="f-card-desc">In-memory caching of Google Calendar &amp; Sheets eliminates blocking external HTTP queries for instant dashboard response.</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const video = document.getElementById('showcaseVideo');
+    const chapterItems = document.querySelectorAll('.chapter-item');
+
+    function seekVideo(seconds) {
+        if (!video) return;
+        video.currentTime = seconds;
+        video.play();
+    }
+
+    // Highlight active chapter as video plays
+    video.addEventListener('timeupdate', () => {
+        const t = video.currentTime;
+        chapterItems.forEach(el => el.classList.remove('active'));
+        if (t < 16.5) chapterItems[0].classList.add('active');
+        else if (t < 46.0) chapterItems[1].classList.add('active');
+        else if (t < 65.8) chapterItems[2].classList.add('active');
+        else if (t < 90.7) chapterItems[3].classList.add('active');
+        else if (t < 115.5) chapterItems[4].classList.add('active');
+        else chapterItems[5].classList.add('active');
+    });
+</script>
+
+</body>
+</html>

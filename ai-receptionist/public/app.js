@@ -394,12 +394,12 @@ async function handleUserMessage(text) {
         callCard.className = 'bubble ai';
         callCard.innerHTML = `
             <div class="bubble-label">📞 Live Cellular Confirmation Call</div>
-            <div class="bubble-text" style="border-left: 3px solid #ec4899; background: rgba(236,72,153,0.08); padding: 0.9rem;">
-                <div style="font-weight: 700; color: #ec4899; font-size: 0.95rem; margin-bottom: 0.3rem;">🚀 Automated Confirmation Call Ringing!</div>
+            <div class="bubble-text" style="border-left: 3px solid #3b82f6; background: rgba(59,130,246,0.08); padding: 0.9rem;">
+                <div style="font-weight: 700; color: #3b82f6; font-size: 0.95rem; margin-bottom: 0.3rem;">🚀 Automated Confirmation Call Ringing!</div>
                 <div style="font-size: 0.86rem; color: #f1f5f9; line-height: 1.5;">
                     Our Nothing Phone 2a cellular gateway is dialing <strong>+91 ${result.phone || state.phoneNumber}</strong> right now with <strong>ElevenLabs Voice</strong>.
                 </div>
-                <div style="font-size: 0.8rem; color: #f472b6; margin-top: 0.4rem;">
+                <div style="font-size: 0.8rem; color: #60a5fa; margin-top: 0.4rem;">
                     📲 Please pick up your phone to hear your appointment details confirmed live!
                 </div>
             </div>
